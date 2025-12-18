@@ -1,11 +1,12 @@
 use bevy::prelude::*;
-use rand::{Rng};
-
-mod geometry;
+use rand::Rng;
 
 const PLAYER_RADIUS: f32 = 15.0;
-const PLANKTON_RADIUS: f32 = 15.0;
 
+mod fauna;
+use fauna::SpeciesType;
+
+use crate::fauna::{get_nutrition, get_radius};
 
 fn main() {
     App::new()
@@ -21,7 +22,9 @@ fn main() {
 struct Plankton;
 
 #[derive(Component)]
-struct Player;
+struct Player {
+    mass: u32,
+}
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
 struct Velocity(Vec2);
@@ -34,7 +37,6 @@ struct AccumulatedInput {
     movement: Vec2,
 }
 
-
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -43,16 +45,19 @@ fn setup(
     let mut rng = rand::rng();
     commands.spawn(Camera2d);
     for _ in 0..100 {
+        let species = fauna::sample_species(&mut rng);
+
         commands.spawn((
-            Mesh2d(meshes.add(Circle::new(PLANKTON_RADIUS))),
-            MeshMaterial2d(materials.add(Color::srgb(1.0, 0.5, 0.5))),
+            Mesh2d(meshes.add(Circle::new(get_radius(&species)))),
+            MeshMaterial2d(materials.add(fauna::get_color(&species))),
             Transform::from_xyz(
                 (rng.random::<f32>() - 0.5) * 1200.0,
                 (rng.random::<f32>() - 0.5) * 600.0,
-                0.0
+                0.0,
             ),
             Plankton,
             Eatable,
+            species,
         ));
     }
     // Spawn the player
@@ -62,10 +67,10 @@ fn setup(
         Transform::from_xyz(
             (rng.random::<f32>() - 0.5) * 1200.0,
             (rng.random::<f32>() - 0.5) * 600.0,
-            0.0
+            0.0,
         ),
         Plankton,
-        Player,
+        Player { mass: 1 },
         Velocity::default(),
         AccumulatedInput::default(),
     ));
@@ -76,7 +81,7 @@ fn accumulate_input(
     player: Single<(&mut AccumulatedInput, &mut Velocity)>,
 ) {
     let (mut input, mut velocity) = player.into_inner();
-    
+
     input.movement = Vec2::ZERO;
     if keyboard_input.pressed(KeyCode::KeyW) {
         input.movement.y += 1.0;
@@ -94,14 +99,7 @@ fn accumulate_input(
     velocity.0 = 100.0 * input.movement.normalize_or_zero();
 }
 
-fn update_positions(
-    fixed_time: Res<Time<Fixed>>,
-    mut query: Query<(
-        &mut Transform,
-        &Velocity,
-    )>,
-) {
-
+fn update_positions(fixed_time: Res<Time<Fixed>>, mut query: Query<(&mut Transform, &Velocity)>) {
     for (mut transform, velocity) in query.iter_mut() {
         transform.translation.x += velocity.0.x * fixed_time.delta_secs();
         transform.translation.y += velocity.0.y * fixed_time.delta_secs();
@@ -117,22 +115,23 @@ fn distance(a: Vec2, b: Vec2) -> f32 {
     (diff.x * diff.x + diff.y * diff.y).sqrt()
 }
 
-
 fn consume_plankton(
     mut commands: Commands,
-    player: Query<&Transform, With<Player>>,
-    plankton_list: Query<(Entity, &Transform), With<Eatable>>,
-)
-{
-    let player_pos = transform_to_vec2(&player.single().unwrap());
+    mut player: Query<(&Transform, &mut Player)>,
+    plankton_list: Query<(Entity, &SpeciesType, &Transform), With<Eatable>>,
+) {
+    let (player_pos, mut player_state) = player.single_mut().unwrap();
+    let player_pos = transform_to_vec2(player_pos);
 
-    for (plankton_entity, &plankton_pos) in plankton_list.iter() {
+    for (plankton_entity, species, &plankton_pos) in plankton_list.iter() {
         let plankton_pos = transform_to_vec2(&plankton_pos);
         let distance = distance(player_pos, plankton_pos);
 
-        if distance < (PLAYER_RADIUS + PLANKTON_RADIUS) {
-            commands.entity(plankton_entity).despawn();
+        let planton_radius = get_radius(species);
 
+        if distance < (PLAYER_RADIUS + planton_radius) {
+            player_state.mass += get_nutrition(species);
+            commands.entity(plankton_entity).despawn();
         }
     }
 }
