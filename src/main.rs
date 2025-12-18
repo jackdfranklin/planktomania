@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use rand::Rng;
+use noisy_bevy::{simplex_noise_3d_seeded, fbm_simplex_2d};
 
 const PLAYER_RADIUS: f32 = 15.0;
 
@@ -13,6 +14,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
+        .add_systems(Update, random_motion)
         .add_systems(FixedUpdate, update_positions)
         .add_systems(FixedUpdate, consume_plankton)
         .run();
@@ -62,6 +64,7 @@ fn setup(
             Plankton,
             Eatable,
             species,
+            Velocity::default(),
         ));
     }
     // Spawn the player
@@ -139,5 +142,16 @@ fn consume_plankton(
             mass.0 += get_nutrition(species);
             commands.entity(plankton_entity).despawn();
         }
+}
+}
+
+fn random_motion(
+    mut query: Query<(&Transform, &mut Velocity)>,
+) {
+    for (transform, mut velocity) in query.iter_mut() {
+        let pos = Vec2::from_array([transform.translation.x, transform.translation.y]);
+        let offset = Vec2::from_array([123.4, 56789.0]);
+        velocity.0.x = 1.0 * fbm_simplex_2d(pos, 3, 0.5, 5.0);
+        velocity.0.y = 1.0 * fbm_simplex_2d(pos + offset, 3, 0.5, 5.0);
     }
 }
