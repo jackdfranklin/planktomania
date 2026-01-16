@@ -1,11 +1,8 @@
 use bevy::prelude::*;
-use rand::{Rng};
-
-mod geometry;
+use rand::Rng;
 
 const PLAYER_RADIUS: f32 = 15.0;
 const PLANKTON_RADIUS: f32 = 15.0;
-
 
 fn main() {
     App::new()
@@ -34,7 +31,6 @@ struct AccumulatedInput {
     movement: Vec2,
 }
 
-
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -49,7 +45,7 @@ fn setup(
             Transform::from_xyz(
                 (rng.random::<f32>() - 0.5) * 1200.0,
                 (rng.random::<f32>() - 0.5) * 600.0,
-                0.0
+                0.0,
             ),
             Plankton,
             Eatable,
@@ -62,7 +58,7 @@ fn setup(
         Transform::from_xyz(
             (rng.random::<f32>() - 0.5) * 1200.0,
             (rng.random::<f32>() - 0.5) * 600.0,
-            0.0
+            0.0,
         ),
         Plankton,
         Player,
@@ -76,7 +72,7 @@ fn accumulate_input(
     player: Single<(&mut AccumulatedInput, &mut Velocity)>,
 ) {
     let (mut input, mut velocity) = player.into_inner();
-    
+
     input.movement = Vec2::ZERO;
     if keyboard_input.pressed(KeyCode::KeyW) {
         input.movement.y += 1.0;
@@ -94,14 +90,7 @@ fn accumulate_input(
     velocity.0 = 100.0 * input.movement.normalize_or_zero();
 }
 
-fn update_positions(
-    fixed_time: Res<Time<Fixed>>,
-    mut query: Query<(
-        &mut Transform,
-        &Velocity,
-    )>,
-) {
-
+fn update_positions(fixed_time: Res<Time<Fixed>>, mut query: Query<(&mut Transform, &Velocity)>) {
     for (mut transform, velocity) in query.iter_mut() {
         transform.translation.x += velocity.0.x * fixed_time.delta_secs();
         transform.translation.y += velocity.0.y * fixed_time.delta_secs();
@@ -117,14 +106,12 @@ fn distance(a: Vec2, b: Vec2) -> f32 {
     (diff.x * diff.x + diff.y * diff.y).sqrt()
 }
 
-
 fn consume_plankton(
     mut commands: Commands,
     player: Query<&Transform, With<Player>>,
     plankton_list: Query<(Entity, &Transform), With<Eatable>>,
-)
-{
-    let player_pos = transform_to_vec2(&player.single().unwrap());
+) {
+    let player_pos = transform_to_vec2(player.single().unwrap());
 
     for (plankton_entity, &plankton_pos) in plankton_list.iter() {
         let plankton_pos = transform_to_vec2(&plankton_pos);
@@ -132,7 +119,6 @@ fn consume_plankton(
 
         if distance < (PLAYER_RADIUS + PLANKTON_RADIUS) {
             commands.entity(plankton_entity).despawn();
-
         }
     }
 }
