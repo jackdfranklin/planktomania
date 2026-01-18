@@ -15,7 +15,7 @@ fn main() {
         .add_systems(PreUpdate, accumulate_input)
         .add_systems(Update, random_motion)
         .add_systems(Update, (update_transforms, update_camera).chain())
-        .add_systems(FixedUpdate, update_positions)
+        .add_systems(FixedUpdate, (update_velocities, update_positions).chain())
         .add_systems(FixedUpdate, consume_plankton)
         .run();
 }
@@ -40,6 +40,9 @@ struct OldPosition(Vec2);
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
 struct Velocity(Vec2);
+
+#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
+struct Acceleration(Vec2);
 
 #[derive(Component)]
 struct Eatable;
@@ -100,15 +103,29 @@ fn setup(
         Position::default(),
         OldPosition::default(),
         Velocity::default(),
+        Acceleration::default(),
         AccumulatedInput::default(),
     ));
 }
 
+fn update_velocities(
+    fixed_time: Res<Time<Fixed>>,
+    mut query: Query<(&mut Velocity, &mut Acceleration)>,
+) {
+    let drag_coeff = 0.2;
+    for (mut velocity, mut acceleration) in query.iter_mut() {
+        let drag = -drag_coeff * velocity.0;
+        velocity.0 += acceleration.0 * fixed_time.delta_secs(); 
+        velocity.0 += drag * fixed_time.delta_secs();
+        acceleration.0 = Vec2::ZERO;
+    }
+}
+
 fn accumulate_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    player: Single<(&mut AccumulatedInput, &mut Velocity)>,
+    player: Single<(&mut AccumulatedInput, &mut Acceleration)>,
 ) {
-    let (mut input, mut velocity) = player.into_inner();
+    let (mut input, mut acceleration) = player.into_inner();
 
     input.movement = Vec2::ZERO;
     if keyboard_input.pressed(KeyCode::KeyW) {
@@ -124,7 +141,7 @@ fn accumulate_input(
         input.movement.x += 1.0;
     }
 
-    velocity.0 = 100.0 * input.movement.normalize_or_zero();
+    acceleration.0 = 10.0 * input.movement.normalize_or_zero();
 }
 
 fn update_positions(
@@ -204,14 +221,14 @@ fn update_camera(
 }
 
 fn random_motion(
-    mut query: Query<&mut Velocity>,
+    mut query: Query<&mut Acceleration>,
 ) {
     let mut rng = rand::rng();
     let p = 0.005;
-    for mut velocity in query.iter_mut() {
+    for mut acceleration in query.iter_mut() {
         let q = rng.random::<f32>();
         if q < p {
-            velocity.0 = random_vec2(5.0, &mut rng);
+            acceleration.0 = random_vec2(5.0, &mut rng);
         }
     }
 }
