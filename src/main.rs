@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use rand::Rng;
-use noisy_bevy::{simplex_noise_3d_seeded, fbm_simplex_2d};
 
 const PLAYER_RADIUS: f32 = 15.0;
 
@@ -156,11 +155,11 @@ fn random_motion(
     mut query: Query<&mut Velocity>,
 ) {
     let mut rng = rand::rng();
-    let p = 0.1;
+    let p = 0.3;
     for mut velocity in query.iter_mut() {
         let q = rng.random::<f32>();
         if q < p {
-            velocity.0 += 5.0 * random_vec2(&mut rng);
+            velocity.0 += 10.0 * random_vec2(&mut rng);
         }
     }
 }
