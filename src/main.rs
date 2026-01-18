@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use rand::Rng;
 
 const PLAYER_RADIUS: f32 = 15.0;
+const PLAYER_MAX_SPEED: f32 = 100.0;
 
 mod fauna;
 use fauna::SpeciesType;
@@ -117,6 +118,10 @@ fn update_velocities(
         let drag = -drag_coeff * velocity.0;
         velocity.0 += acceleration.0 * fixed_time.delta_secs(); 
         velocity.0 += drag * fixed_time.delta_secs();
+        let speed = velocity.0.length();
+        let direction = velocity.0.normalize_or_zero();
+        velocity.0 = speed.min(PLAYER_MAX_SPEED) * direction;
+
         acceleration.0 = Vec2::ZERO;
     }
 }
@@ -141,7 +146,7 @@ fn accumulate_input(
         input.movement.x += 1.0;
     }
 
-    acceleration.0 = 10.0 * input.movement.normalize_or_zero();
+    acceleration.0 = 50.0 * input.movement.normalize_or_zero();
 }
 
 fn update_positions(
@@ -228,7 +233,7 @@ fn random_motion(
     for mut acceleration in query.iter_mut() {
         let q = rng.random::<f32>();
         if q < p {
-            acceleration.0 = random_vec2(5.0, &mut rng);
+            acceleration.0 = random_vec2(50.0, &mut rng);
         }
     }
 }
