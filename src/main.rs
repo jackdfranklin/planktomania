@@ -48,6 +48,9 @@ struct Acceleration(Vec2);
 #[derive(Component)]
 struct Eatable;
 
+#[derive(Debug, Component, Clone, PartialEq, Default, Deref, DerefMut)]
+struct SwimTimer(Timer);
+
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
 struct AccumulatedInput {
     movement: Vec2,
@@ -106,6 +109,7 @@ fn setup(
         Velocity::default(),
         Acceleration::default(),
         AccumulatedInput::default(),
+        SwimTimer(Timer::from_seconds(1.5, TimerMode::Repeating)),
     ));
 }
 
@@ -113,7 +117,7 @@ fn update_velocities(
     fixed_time: Res<Time<Fixed>>,
     mut query: Query<(&mut Velocity, &mut Acceleration)>,
 ) {
-    let drag_coeff = 0.2;
+    let drag_coeff = 0.5;
     for (mut velocity, mut acceleration) in query.iter_mut() {
         let drag = -drag_coeff * velocity.0;
         velocity.0 += acceleration.0 * fixed_time.delta_secs(); 
@@ -127,26 +131,34 @@ fn update_velocities(
 }
 
 fn accumulate_input(
+    time: Res<Time>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    player: Single<(&mut AccumulatedInput, &mut Acceleration)>,
+    player: Single<(&mut AccumulatedInput, &mut Velocity, &mut SwimTimer)>,
 ) {
-    let (mut input, mut acceleration) = player.into_inner();
+    let (mut input, mut velocity, mut swim_timer) = player.into_inner();
 
-    input.movement = Vec2::ZERO;
-    if keyboard_input.pressed(KeyCode::KeyW) {
-        input.movement.y += 1.0;
-    }
-    if keyboard_input.pressed(KeyCode::KeyS) {
-        input.movement.y -= 1.0;
-    }
-    if keyboard_input.pressed(KeyCode::KeyA) {
-        input.movement.x -= 1.0;
-    }
-    if keyboard_input.pressed(KeyCode::KeyD) {
-        input.movement.x += 1.0;
-    }
+    swim_timer.0.tick(time.delta());
 
-    acceleration.0 = 50.0 * input.movement.normalize_or_zero();
+    if swim_timer.is_finished() {
+
+        input.movement = Vec2::ZERO;
+        if keyboard_input.pressed(KeyCode::KeyW) {
+            input.movement.y += 1.0;
+        }
+        if keyboard_input.pressed(KeyCode::KeyS) {
+            input.movement.y -= 1.0;
+        }
+        if keyboard_input.pressed(KeyCode::KeyA) {
+            input.movement.x -= 1.0;
+        }
+        if keyboard_input.pressed(KeyCode::KeyD) {
+            input.movement.x += 1.0;
+        }
+
+        velocity.0 += 150.0 * input.movement.normalize_or_zero();
+
+        swim_timer.reset();
+    }
 }
 
 fn update_positions(
