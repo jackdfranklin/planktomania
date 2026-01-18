@@ -22,9 +22,13 @@ fn main() {
 struct Plankton;
 
 #[derive(Component)]
-struct Player {
-    mass: u32,
-}
+struct Player;
+
+#[derive(Component)]
+struct Predator;
+
+#[derive(Component)]
+struct Mass(f32);
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
 struct Velocity(Vec2);
@@ -70,7 +74,9 @@ fn setup(
             0.0,
         ),
         Plankton,
-        Player { mass: 1 },
+        Player,
+        Predator,
+        Mass(10.0),
         Velocity::default(),
         AccumulatedInput::default(),
     ));
@@ -117,20 +123,20 @@ fn distance(a: Vec2, b: Vec2) -> f32 {
 
 fn consume_plankton(
     mut commands: Commands,
-    mut player: Query<(&Transform, &mut Player)>,
+    mut predator: Query<(&Transform, &mut Mass), With<Predator>>,
     plankton_list: Query<(Entity, &SpeciesType, &Transform), With<Eatable>>,
 ) {
-    let (player_pos, mut player_state) = player.single_mut().unwrap();
-    let player_pos = transform_to_vec2(player_pos);
+    let (predator_pos, mut mass) = predator.single_mut().unwrap();
+    let predator_pos = transform_to_vec2(predator_pos);
 
     for (plankton_entity, species, &plankton_pos) in plankton_list.iter() {
         let plankton_pos = transform_to_vec2(&plankton_pos);
-        let distance = distance(player_pos, plankton_pos);
+        let distance = distance(predator_pos, plankton_pos);
 
-        let planton_radius = get_radius(species);
+        let plankton_radius = get_radius(species);
 
-        if distance < (PLAYER_RADIUS + planton_radius) {
-            player_state.mass += get_nutrition(species);
+        if distance < (PLAYER_RADIUS + plankton_radius) {
+            mass.0 += get_nutrition(species);
             commands.entity(plankton_entity).despawn();
         }
     }
