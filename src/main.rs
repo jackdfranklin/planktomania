@@ -14,6 +14,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
         .add_systems(Update, random_motion)
+        .add_systems(Update, update_camera)
         .add_systems(FixedUpdate, update_positions)
         .add_systems(FixedUpdate, consume_plankton)
         .run();
@@ -147,7 +148,23 @@ fn consume_plankton(
             mass.0 += get_nutrition(species);
             commands.entity(plankton_entity).despawn();
         }
+    }
 }
+
+fn update_camera(
+    mut camera: Single<&mut Transform, (With<Camera2d>, Without<Player>)>,
+    player: Single<&Transform, (With<Player>, Without<Camera2d>)>,
+    time: Res<Time>,
+) {
+    let Vec3 { x, y, .. } = player.translation;
+    let direction = Vec3::new(x, y, camera.translation.z);
+
+    // Applies a smooth effect to camera movement using stable interpolation
+    // between the camera position and the player position on the x and y axes.
+    let camera_decay_rate: f32 = 2.0;
+    camera
+        .translation
+        .smooth_nudge(&direction, camera_decay_rate, time.delta_secs());
 }
 
 fn random_motion(
