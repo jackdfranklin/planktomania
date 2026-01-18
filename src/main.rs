@@ -36,6 +36,9 @@ struct Mass(f32);
 struct Position(Vec2);
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
+struct OldPosition(Vec2);
+
+#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
 struct Velocity(Vec2);
 
 #[derive(Component)]
@@ -77,6 +80,7 @@ fn setup(
             Eatable,
             species,
             Position(Vec2::new(x, y)),
+            OldPosition(Vec2::new(x, y)),
             Velocity(random_vec2(5.0, &mut rng)),
         ));
     }
@@ -94,6 +98,7 @@ fn setup(
         Predator,
         Mass(10.0),
         Position::default(),
+        OldPosition::default(),
         Velocity::default(),
         AccumulatedInput::default(),
     ));
@@ -122,17 +127,14 @@ fn accumulate_input(
     velocity.0 = 100.0 * input.movement.normalize_or_zero();
 }
 
-fn update_positions(fixed_time: Res<Time<Fixed>>, mut query: Query<(&mut Position, &Velocity)>) {
-    for (mut position, velocity) in query.iter_mut() {
+fn update_positions(
+    fixed_time: Res<Time<Fixed>>,
+    mut query: Query<(&mut Position, &mut OldPosition, &Velocity)>
+) {
+    for (mut position, mut old_position, velocity) in query.iter_mut() {
+        old_position.0 = position.0;
         position.x += velocity.0.x * fixed_time.delta_secs();
         position.y += velocity.0.y * fixed_time.delta_secs();
-    }
-}
-
-fn update_transforms(mut query: Query<(&mut Transform, &Position)>) {
-    for (mut transform, position) in query.iter_mut() {
-        transform.translation.x = position.x;
-        transform.translation.y = position.y;
     }
 }
 
@@ -163,6 +165,25 @@ fn consume_plankton(
             mass.0 += get_nutrition(species);
             commands.entity(plankton_entity).despawn();
         }
+    }
+}
+
+fn update_transforms(
+    fixed_time: Res<Time<Fixed>>,
+    mut query: Query<(
+        &mut Transform,
+        &Position,
+        &OldPosition,
+    )>,
+) {
+    for (mut transform, pos, old_pos) in query.iter_mut() {
+        let prev = old_pos.0;
+        let current = pos.0;
+        // Fraction of time-step between fixed time-step updates
+        let delta = fixed_time.overstep_fraction();
+        // Linear interpolate between old and current positions
+        let translation = prev.lerp(current, delta); 
+        transform.translation = Vec3::new(translation.x, translation.y, 0.0);
     }
 }
 
