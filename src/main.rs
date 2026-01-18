@@ -14,7 +14,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
         .add_systems(Update, random_motion)
-        .add_systems(Update, update_camera)
+        .add_systems(Update, (update_transforms, update_camera).chain())
         .add_systems(FixedUpdate, update_positions)
         .add_systems(FixedUpdate, consume_plankton)
         .run();
@@ -31,6 +31,9 @@ struct Predator;
 
 #[derive(Component)]
 struct Mass(f32);
+
+#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
+struct Position(Vec2);
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
 struct Velocity(Vec2);
@@ -59,17 +62,21 @@ fn setup(
     for _ in 0..100 {
         let species = fauna::sample_species(&mut rng);
 
+        let x: f32 = (rng.random::<f32>() - 0.5) * 1200.0;
+        let y: f32 = (rng.random::<f32>() - 0.5) * 600.0;
+
         commands.spawn((
             Mesh2d(meshes.add(Circle::new(get_radius(&species)))),
             MeshMaterial2d(materials.add(fauna::get_color(&species))),
             Transform::from_xyz(
-                (rng.random::<f32>() - 0.5) * 1200.0,
-                (rng.random::<f32>() - 0.5) * 600.0,
+                x,
+                y,
                 0.0,
             ),
             Plankton,
             Eatable,
             species,
+            Position(Vec2::new(x, y)),
             Velocity(random_vec2(5.0, &mut rng)),
         ));
     }
@@ -78,14 +85,15 @@ fn setup(
         Mesh2d(meshes.add(Circle::new(PLAYER_RADIUS))),
         MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 1.0))),
         Transform::from_xyz(
-            (rng.random::<f32>() - 0.5) * 1200.0,
-            (rng.random::<f32>() - 0.5) * 600.0,
+            0.0,
+            0.0,
             0.0,
         ),
         Plankton,
         Player,
         Predator,
         Mass(10.0),
+        Position::default(),
         Velocity::default(),
         AccumulatedInput::default(),
     ));
@@ -114,10 +122,17 @@ fn accumulate_input(
     velocity.0 = 100.0 * input.movement.normalize_or_zero();
 }
 
-fn update_positions(fixed_time: Res<Time<Fixed>>, mut query: Query<(&mut Transform, &Velocity)>) {
-    for (mut transform, velocity) in query.iter_mut() {
-        transform.translation.x += velocity.0.x * fixed_time.delta_secs();
-        transform.translation.y += velocity.0.y * fixed_time.delta_secs();
+fn update_positions(fixed_time: Res<Time<Fixed>>, mut query: Query<(&mut Position, &Velocity)>) {
+    for (mut position, velocity) in query.iter_mut() {
+        position.x += velocity.0.x * fixed_time.delta_secs();
+        position.y += velocity.0.y * fixed_time.delta_secs();
+    }
+}
+
+fn update_transforms(mut query: Query<(&mut Transform, &Position)>) {
+    for (mut transform, position) in query.iter_mut() {
+        transform.translation.x = position.x;
+        transform.translation.y = position.y;
     }
 }
 
