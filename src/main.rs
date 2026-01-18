@@ -43,6 +43,13 @@ struct AccumulatedInput {
     movement: Vec2,
 }
 
+fn random_vec2(rng: &mut impl Rng) -> Vec2{
+    Vec2::new(
+        rng.random::<f32>() - 0.5,
+        rng.random::<f32>() - 0.5
+    )
+}
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -64,7 +71,7 @@ fn setup(
             Plankton,
             Eatable,
             species,
-            Velocity::default(),
+            Velocity(10.0 * random_vec2(&mut rng)),
         ));
     }
     // Spawn the player
@@ -146,12 +153,14 @@ fn consume_plankton(
 }
 
 fn random_motion(
-    mut query: Query<(&Transform, &mut Velocity)>,
+    mut query: Query<&mut Velocity>,
 ) {
-    for (transform, mut velocity) in query.iter_mut() {
-        let pos = Vec2::from_array([transform.translation.x, transform.translation.y]);
-        let offset = Vec2::from_array([123.4, 56789.0]);
-        velocity.0.x = 1.0 * fbm_simplex_2d(pos, 3, 0.5, 5.0);
-        velocity.0.y = 1.0 * fbm_simplex_2d(pos + offset, 3, 0.5, 5.0);
+    let mut rng = rand::rng();
+    let p = 0.1;
+    for mut velocity in query.iter_mut() {
+        let q = rng.random::<f32>();
+        if q < p {
+            velocity.0 += 5.0 * random_vec2(&mut rng);
+        }
     }
 }
