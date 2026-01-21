@@ -1,4 +1,5 @@
-use bevy::prelude::*;
+use bevy::{math::Isometry2d, prelude::*};
+use bevy::window::{Window, PrimaryWindow};
 use rand::Rng;
 
 const PLAYER_RADIUS: f32 = 15.0;
@@ -9,9 +10,13 @@ use fauna::SpeciesType;
 
 use crate::fauna::{get_nutrition, get_radius};
 
+mod gameworld;
+use gameworld::*;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(GameWorldPlugin)
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
         .add_systems(Update, random_motion)
@@ -25,25 +30,10 @@ fn main() {
 struct Plankton;
 
 #[derive(Component)]
-struct Player;
-
-#[derive(Component)]
 struct Predator;
 
 #[derive(Component)]
 struct Mass(f32);
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-struct Position(Vec2);
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-struct OldPosition(Vec2);
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-struct Velocity(Vec2);
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-struct Acceleration(Vec2);
 
 #[derive(Component)]
 struct Eatable;
@@ -64,16 +54,22 @@ fn random_vec2(length: f32, rng: &mut impl Rng) -> Vec2{
 
 fn setup(
     mut commands: Commands,
+    window_query: Single<&Window, With<PrimaryWindow>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let mut rng = rand::rng();
     commands.spawn(Camera2d);
+
+    let window = window_query.into_inner();
+
+    let width = window.width();
+    let height = window.height();
     for _ in 0..100 {
         let species = fauna::sample_species(&mut rng);
 
-        let x: f32 = (rng.random::<f32>() - 0.5) * 1200.0;
-        let y: f32 = (rng.random::<f32>() - 0.5) * 600.0;
+        let x: f32 = (rng.random::<f32>() - 0.5) * 2.0 * width;
+        let y: f32 = (rng.random::<f32>() - 0.5) * 2.0 * height;
 
         commands.spawn((
             Mesh2d(meshes.add(Circle::new(get_radius(&species)))),
