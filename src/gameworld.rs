@@ -1,15 +1,16 @@
 use bevy::{color::palettes::css::*, prelude::*};
 
-const RENDER_DISTANCE: f32 = 1000.0;
+const RENDER_DISTANCE: u32 = 20;
 
-const TILE_WIDTH: f32 = 100.0;
+const TILE_WIDTH: f32 = 250.0;
 
 pub struct GameWorldPlugin;
 
 impl Plugin for GameWorldPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_starting_tiles)
-           .add_systems(Update, cull_tiles);
+            .add_systems(Update, cull_tiles)
+            .add_systems(Update, spawn_new_tiles);
     }
 }
 
@@ -36,17 +37,15 @@ fn spawn_starting_tiles(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let nx = 10;
-    let ny = 10;
-    for i in 0..nx {
-        for j in 0..ny {
-            let x = 0.5 * RENDER_DISTANCE * (-1.0 + 2.0 * (i as f32 / nx as f32));
-            let y = 0.5 * RENDER_DISTANCE * (-1.0 + 2.0 * (j as f32 / nx as f32));
+    for i in -10..10 {
+        for j in -10..10 {
+            let x = (i as f32) * TILE_WIDTH;
+            let y = (j as f32) * TILE_WIDTH;
 
-            let colour = Vec3::new(x, y, 0.0).length() / RENDER_DISTANCE;
+            let colour = IVec2::new(i, j).chebyshev_distance(IVec2::ZERO) as f32 / (RENDER_DISTANCE as f32);
 
             commands.spawn((
-                WorldTile(Vec2::new(x, y).as_ivec2()),
+                WorldTile(pos_to_lattice(Vec2::new(x, y))),
                 Mesh2d(meshes.add(Rectangle::new(TILE_WIDTH, TILE_WIDTH))),
                 MeshMaterial2d(materials.add(Color::srgb(colour, 0.0, 0.0))),
                 Transform::from_xyz(
@@ -59,11 +58,88 @@ fn spawn_starting_tiles(
     }
 }
 
+fn loaded_tiles(lattice_pos: IVec2) -> Vec<IVec2> {
+    let mut tiles = Vec::new();
+    for i in -10..10 {
+        for j in -10..10 {
+            tiles.push(IVec2{
+                x: lattice_pos.x + i,
+                y: lattice_pos.y + j,
+            });
+        }
+    }
+    tiles
+}
+
+fn lattice_to_pos(
+    lattice_pos: IVec2,
+) -> Vec2 {
+    Vec2{
+        x: lattice_pos.x as f32 * TILE_WIDTH,
+        y: lattice_pos.y as f32 * TILE_WIDTH,
+    }
+}
+
+fn pos_to_lattice(
+    pos: Vec2,
+) -> IVec2 {
+    IVec2{
+        x: (pos.x / TILE_WIDTH).round() as i32,
+        y: (pos.y / TILE_WIDTH).round() as i32,
+    }
+}
+
 fn spawn_new_tiles(
     mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     pos_query: Single<(&Position, &OldPosition), With<Player>>,
 ) {
     let (current_pos, old_pos) = pos_query.into_inner();
+    let current_lattice_pos = pos_to_lattice(current_pos.0);
+    let old_lattice_pos = pos_to_lattice(old_pos.0);
+
+    println!("Current Lattice Pos: {0}, Old Lattice Pos: {1}", current_lattice_pos, old_lattice_pos);
+    if current_lattice_pos != old_lattice_pos {
+        let current_lattice_trans = lattice_to_pos(current_lattice_pos);
+        commands.spawn((
+            WorldTile(current_lattice_pos),
+            Mesh2d(meshes.add(Rectangle::new(TILE_WIDTH, TILE_WIDTH))),
+            MeshMaterial2d(materials.add(Color::srgb(0.0, 0.0, 0.5))),
+            Transform::from_xyz(
+                current_lattice_trans.x,
+                current_lattice_trans.y,
+                0.0
+            ),
+        ));
+        // Dumb way: Create a Vec of positions for new and old tiles, and find the
+        // new tiles that don't exist in old
+        let new_tiles = loaded_tiles(current_lattice_pos);
+        let old_tiles = loaded_tiles(old_lattice_pos);
+
+        for nt in &new_tiles {
+            let mut loaded = false;
+            for ot in &old_tiles {
+                if nt == ot {
+                    loaded = true;
+                }
+            }
+            if !loaded {
+                let new_pos = lattice_to_pos(*nt);
+                let colour = nt.chebyshev_distance(current_lattice_pos) as f32 / (RENDER_DISTANCE as f32);
+                commands.spawn((
+                    WorldTile(*nt),
+                    Mesh2d(meshes.add(Rectangle::new(TILE_WIDTH, TILE_WIDTH))),
+                    MeshMaterial2d(materials.add(Color::srgb(0.0, colour, 0.0))),
+                    Transform::from_xyz(
+                        new_pos.x,
+                        new_pos.y,
+                        0.0
+                    ),
+                ));
+            }
+        }
+    }
     
 }
 
@@ -73,10 +149,10 @@ fn cull_tiles(
     tile_query: Query<(Entity, &WorldTile)>,
 ) {
     let current_pos = pos_query.into_inner();
-    let current_tile = current_pos.0.as_ivec2();
+    let current_tile = pos_to_lattice(current_pos.0);
 
     for (entity, world_tile) in tile_query.iter() {
-        if world_tile.0.chebyshev_distance(current_tile) > 1000 {
+        if world_tile.0.chebyshev_distance(current_tile) > RENDER_DISTANCE {
             commands.entity(entity).despawn();
         }
     }
