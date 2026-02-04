@@ -87,14 +87,9 @@ fn spawn_starting_tiles(
             let x = (i as f32) * TILE_WIDTH;
             let y = (j as f32) * TILE_WIDTH;
 
-            commands.spawn((
+            commands.spawn(
                 WorldTile(pos_to_lattice(Vec2::new(x, y))),
-                Transform::from_xyz(
-                    x,
-                    y,
-                    0.0,
-                ),
-            ));
+            );
         }
     }
 }
@@ -153,14 +148,9 @@ fn spawn_new_tiles(
             }
             if !loaded {
                 let new_pos = lattice_to_pos(*nt);
-                commands.spawn((
+                commands.spawn(
                     WorldTile(*nt),
-                    Transform::from_xyz(
-                        new_pos.x,
-                        new_pos.y,
-                        0.0
-                    ),
-                ));
+                );
             }
         }
     }
