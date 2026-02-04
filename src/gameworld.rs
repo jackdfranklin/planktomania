@@ -8,7 +8,8 @@ pub struct GameWorldPlugin;
 
 impl Plugin for GameWorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_starting_tiles)
+        app.insert_resource(CentreTile(IVec2::ZERO))
+            .add_systems(Startup, spawn_starting_tiles)
             .add_systems(Update, cull_tiles)
             .add_systems(Update, spawn_new_tiles);
     }
@@ -29,8 +30,17 @@ pub struct Velocity(pub Vec2);
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
 pub struct Acceleration(pub Vec2);
 
-#[derive(Component)]
+#[derive(Debug, Component, Clone, Copy, PartialEq, Eq, Default, Deref, DerefMut)]
 struct WorldTile(IVec2);
+
+#[derive(Component)]
+struct WorldTileStatus(bool);
+
+#[derive(Resource)]
+struct TileMap(HashMap<WorldTile, Entity>);
+
+#[derive(Resource)]
+struct CentreTile(IVec2);
 
 fn spawn_starting_tiles(
     mut commands: Commands,
@@ -91,31 +101,30 @@ fn pos_to_lattice(
 
 fn spawn_new_tiles(
     mut commands: Commands,
+    mut centre_tile: ResMut<CentreTile>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    pos_query: Single<(&Position, &OldPosition), With<Player>>,
+    pos_query: Single<&Position, With<Player>>,
 ) {
-    let (current_pos, old_pos) = pos_query.into_inner();
+    let current_pos = pos_query.into_inner();
     let current_lattice_pos = pos_to_lattice(current_pos.0);
-    let old_lattice_pos = pos_to_lattice(old_pos.0);
 
-    println!("Current Lattice Pos: {0}, Old Lattice Pos: {1}", current_lattice_pos, old_lattice_pos);
-    if current_lattice_pos != old_lattice_pos {
+    if current_lattice_pos != centre_tile.0 {
         let current_lattice_trans = lattice_to_pos(current_lattice_pos);
-        commands.spawn((
-            WorldTile(current_lattice_pos),
-            Mesh2d(meshes.add(Rectangle::new(TILE_WIDTH, TILE_WIDTH))),
-            MeshMaterial2d(materials.add(Color::srgb(0.0, 0.0, 0.5))),
-            Transform::from_xyz(
-                current_lattice_trans.x,
-                current_lattice_trans.y,
-                0.0
-            ),
-        ));
+//        commands.spawn((
+//            WorldTile(current_lattice_pos),
+//            Mesh2d(meshes.add(Rectangle::new(TILE_WIDTH, TILE_WIDTH))),
+//            MeshMaterial2d(materials.add(Color::srgb(0.0, 0.0, 0.5))),
+//            Transform::from_xyz(
+//                current_lattice_trans.x,
+//                current_lattice_trans.y,
+//                0.0
+//            ),
+//        ));
         // Dumb way: Create a Vec of positions for new and old tiles, and find the
         // new tiles that don't exist in old
         let new_tiles = loaded_tiles(current_lattice_pos);
-        let old_tiles = loaded_tiles(old_lattice_pos);
+        let old_tiles = loaded_tiles(centre_tile.0);
 
         for nt in &new_tiles {
             let mut loaded = false;
@@ -140,6 +149,7 @@ fn spawn_new_tiles(
             }
         }
     }
+    centre_tile.0 = current_lattice_pos;
     
 }
 
