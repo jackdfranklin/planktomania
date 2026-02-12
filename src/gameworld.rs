@@ -2,7 +2,7 @@ use bevy::{color::palettes::css::*, prelude::*};
 
 const RENDER_DISTANCE: u32 = 20;
 
-const TILE_WIDTH: f32 = 250.0;
+pub const TILE_WIDTH: f32 = 250.0;
 
 pub struct GameWorldPlugin;
 
@@ -31,9 +31,9 @@ pub struct Velocity(pub Vec2);
 pub struct Acceleration(pub Vec2);
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Eq, Default, Deref, DerefMut)]
-struct WorldTile(IVec2);
+pub struct WorldTile(IVec2);
 
-trait Tile {
+pub trait Tile {
     fn new(pos: IVec2) -> Self;
 
     fn pos(&self) -> IVec2;
@@ -51,10 +51,11 @@ impl Tile for WorldTile {
     fn pos(&self) -> IVec2 {
         self.0
     }
+
 }
 
 #[derive(Component)]
-struct WorldTileStatus(bool);
+pub struct ActiveTile;
 
 //#[derive(Resource)]
 //struct TileMap(HashMap<WorldTile, Entity>);
@@ -71,6 +72,7 @@ impl Tile for CentreTile {
     fn pos(&self) -> IVec2 {
         self.0
     }
+
 }
 
 impl CentreTile {
@@ -107,7 +109,7 @@ fn loaded_tiles(lattice_pos: IVec2) -> Vec<IVec2> {
     tiles
 }
 
-fn lattice_to_pos(
+pub fn lattice_to_pos(
     lattice_pos: IVec2,
 ) -> Vec2 {
     Vec2{

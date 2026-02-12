@@ -21,6 +21,7 @@ fn main() {
         .add_systems(PreUpdate, accumulate_input)
         .add_systems(Update, random_motion)
         .add_systems(Update, (update_transforms, update_camera).chain())
+        .add_systems(Update, spawn_new_plankton)
         .add_systems(FixedUpdate, (update_velocities, update_positions).chain())
         .add_systems(FixedUpdate, consume_plankton)
         .run();
@@ -243,5 +244,40 @@ fn random_motion(
         if q < p {
             acceleration.0 = random_vec2(50.0, &mut rng);
         }
+    }
+}
+
+fn spawn_new_plankton(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    new_tiles_query: Query<(Entity, &WorldTile), Without<ActiveTile>>,
+) {
+    let mut rng = rand::rng();
+    for (entity, new_tile) in new_tiles_query.iter() {
+        let centre = lattice_to_pos(new_tile.pos());
+        for _ in 0..100 {
+            let species = fauna::sample_species(&mut rng);
+
+            let x: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + centre.x; 
+            let y: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + centre.y;
+
+            commands.spawn((
+                Mesh2d(meshes.add(Circle::new(get_radius(&species)))),
+                MeshMaterial2d(materials.add(fauna::get_color(&species))),
+                Transform::from_xyz(
+                    x,
+                    y,
+                    0.0,
+                ),
+                Plankton,
+                Eatable,
+                species,
+                Position(Vec2::new(x, y)),
+                OldPosition(Vec2::new(x, y)),
+                Velocity(random_vec2(5.0, &mut rng)),
+            ));
+        }
+        commands.entity(entity).insert(ActiveTile);
     }
 }
