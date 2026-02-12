@@ -66,7 +66,7 @@ fn setup(
 
     let width = window.width();
     let height = window.height();
-    for _ in 0..100 {
+    for _ in 0..10 {
         let species = fauna::sample_species(&mut rng);
 
         let x: f32 = (rng.random::<f32>() - 0.5) * 2.0 * width;
@@ -251,16 +251,17 @@ fn spawn_new_plankton(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    centre_tile: Res<CentreTile>,
     new_tiles_query: Query<(Entity, &WorldTile), Without<ActiveTile>>,
 ) {
     let mut rng = rand::rng();
     for (entity, new_tile) in new_tiles_query.iter() {
-        let centre = lattice_to_pos(new_tile.pos());
-        for _ in 0..100 {
+        let tile_centre = lattice_to_pos(new_tile.pos());
+        for _ in 0..20 {
             let species = fauna::sample_species(&mut rng);
 
-            let x: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + centre.x; 
-            let y: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + centre.y;
+            let x: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.x; 
+            let y: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.y;
 
             commands.spawn((
                 Mesh2d(meshes.add(Circle::new(get_radius(&species)))),
