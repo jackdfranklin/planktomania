@@ -1,4 +1,4 @@
-use bevy::{math::Isometry2d, prelude::*};
+use bevy::{prelude::*};
 use bevy::window::{Window, PrimaryWindow};
 use rand::Rng;
 
@@ -199,6 +199,18 @@ fn consume_plankton(
     }
 }
 
+//fn cull_plankton(
+//    mut commands: Commands,
+//    centre_tile: Res<CentreTile>,
+//    plankton_query: Query<(Entity, &Position), With<Plankton>>,
+//) {
+//    for (plankton_entity, plankton_pos) in plankton_query {
+//        if centre_tile.distance(pos_to_lattice(plankton_pos.0)) > 10 {
+//            commands.entity(plankton_entity).despawn();
+//        }
+//    }
+//}
+
 fn update_transforms(
     fixed_time: Res<Time<Fixed>>,
     mut query: Query<(
@@ -251,7 +263,6 @@ fn spawn_new_plankton(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    centre_tile: Res<CentreTile>,
     new_tiles_query: Query<(Entity, &WorldTile), Without<ActiveTile>>,
 ) {
     let mut rng = rand::rng();

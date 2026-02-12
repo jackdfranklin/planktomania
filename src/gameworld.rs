@@ -1,4 +1,4 @@
-use bevy::{color::palettes::css::*, prelude::*};
+use bevy::{prelude::*};
 
 const RENDER_DISTANCE: u32 = 20;
 
@@ -61,7 +61,7 @@ pub struct ActiveTile;
 //struct TileMap(HashMap<WorldTile, Entity>);
 
 #[derive(Debug, Resource, Clone, Copy, PartialEq, Eq, Default, Deref, DerefMut)]
-struct CentreTile(IVec2);
+pub struct CentreTile(IVec2);
 
 impl Tile for CentreTile {
 
@@ -73,12 +73,6 @@ impl Tile for CentreTile {
         self.0
     }
 
-}
-
-impl CentreTile {
-    fn lattice_distance(&self, rhs: &WorldTile) -> u32{
-        self.distance(rhs.pos())
-    }
 }
 
 fn spawn_starting_tiles(
@@ -118,7 +112,7 @@ pub fn lattice_to_pos(
     }
 }
 
-fn pos_to_lattice(
+pub fn pos_to_lattice(
     pos: Vec2,
 ) -> IVec2 {
     IVec2{
@@ -149,7 +143,6 @@ fn spawn_new_tiles(
                 }
             }
             if !loaded {
-                let new_pos = lattice_to_pos(*nt);
                 commands.spawn(
                     WorldTile(*nt),
                 );
@@ -172,27 +165,4 @@ fn cull_tiles(
             commands.entity(entity).despawn();
         }
     }
-}
-
-fn draw_gizmos(
-    mut gizmos: Gizmos
-) {
-    gizmos.grid_2d(
-        Isometry2d::IDENTITY,
-        UVec2::new(10, 10),
-        Vec2::new(250., 250.),
-        // Dark gray
-        RED
-    )
-        .outer_edges();
-
-    gizmos.grid_2d(
-        Isometry2d::IDENTITY,
-        UVec2::new(10, 10),
-        Vec2::new(500., 500.),
-        // Dark gray
-        LinearRgba::gray(0.05),
-    )
-        .outer_edges();
-
 }
