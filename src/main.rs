@@ -58,6 +58,7 @@ fn setup(
     window_query: Single<&Window, With<PrimaryWindow>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     let mut rng = rand::rng();
     commands.spawn(Camera2d);
@@ -88,15 +89,10 @@ fn setup(
             Velocity(random_vec2(5.0, &mut rng)),
         ));
     }
+    let copepod_handle = asset_server.load("copepod_low_res.png");
     // Spawn the player
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(PLAYER_RADIUS))),
-        MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 1.0))),
-        Transform::from_xyz(
-            0.0,
-            0.0,
-            0.5,
-        ),
+        Sprite::from_image(copepod_handle),
         Plankton,
         Player,
         Predator,
