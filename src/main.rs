@@ -83,8 +83,8 @@ fn setup(
             Plankton,
             Eatable,
             species,
-            Position(Vec2::new(x, y)),
-            OldPosition(Vec2::new(x, y)),
+            MovementState{position: Vec2::new(x, y), rotation: Quat::default()},
+            OldMovementState{position: Vec2::new(x, y), rotation: Quat::default()},
             Velocity(random_vec2(5.0, &mut rng)),
         ));
     }
@@ -101,8 +101,8 @@ fn setup(
         Player,
         Predator,
         Mass(10.0),
-        Position::default(),
-        OldPosition::default(),
+        MovementState::default(),
+        OldMovementState::default(),
         Velocity::default(),
         Acceleration::default(),
         AccumulatedInput::default(),
@@ -130,9 +130,14 @@ fn update_velocities(
 fn accumulate_input(
     time: Res<Time>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    player: Single<(&mut AccumulatedInput, &mut Velocity, &mut SwimTimer)>,
+    player: Single<(
+        &mut AccumulatedInput,
+        &mut Velocity,
+        &mut MovementState,
+        &mut OldMovementState,
+        &mut SwimTimer)>,
 ) {
-    let (mut input, mut velocity, mut swim_timer) = player.into_inner();
+    let (mut input, mut velocity, mut state, mut old_state, mut swim_timer) = player.into_inner();
 
     swim_timer.0.tick(time.delta());
 
@@ -152,6 +157,12 @@ fn accumulate_input(
             input.movement.x += 1.0;
         }
 
+        // Want clockwise angle from y-axis
+        let direction = input.movement.angle_to(Vec2::Y);
+
+        old_state.rotation = state.rotation;
+        state.rotation = Quat::from_rotation_z(direction);
+
         velocity.0 += 150.0 * input.movement.normalize_or_zero();
 
         swim_timer.reset();
@@ -160,12 +171,12 @@ fn accumulate_input(
 
 fn update_positions(
     fixed_time: Res<Time<Fixed>>,
-    mut query: Query<(&mut Position, &mut OldPosition, &Velocity)>
+    mut query: Query<(&mut MovementState, &mut OldMovementState, &Velocity)>
 ) {
-    for (mut position, mut old_position, velocity) in query.iter_mut() {
-        old_position.0 = position.0;
-        position.x += velocity.0.x * fixed_time.delta_secs();
-        position.y += velocity.0.y * fixed_time.delta_secs();
+    for (mut state, mut old_state, velocity) in query.iter_mut() {
+        old_state.position = state.position;
+        state.position.x += velocity.0.x * fixed_time.delta_secs();
+        state.position.y += velocity.0.y * fixed_time.delta_secs();
     }
 }
 
@@ -215,18 +226,17 @@ fn update_transforms(
     fixed_time: Res<Time<Fixed>>,
     mut query: Query<(
         &mut Transform,
-        &Position,
-        &OldPosition,
+        &MovementState,
+        &OldMovementState,
     )>,
 ) {
-    for (mut transform, pos, old_pos) in query.iter_mut() {
-        let prev = old_pos.0;
-        let current = pos.0;
-        // Fraction of time-step between fixed time-step updates
+    for (mut transform, state, old_state) in query.iter_mut() {
         let delta = fixed_time.overstep_fraction();
         // Linear interpolate between old and current positions
-        let translation = prev.lerp(current, delta); 
+        let translation = old_state.position.lerp(state.position, delta); 
+        //let rotation = old_state.rotation.lerp(state.rotation, delta);
         transform.translation = Vec3::new(translation.x, translation.y, 0.0);
+        transform.rotation = state.rotation;
     }
 }
 
@@ -285,8 +295,8 @@ fn spawn_new_plankton(
                 Plankton,
                 Eatable,
                 species,
-                Position(Vec2::new(x, y)),
-                OldPosition(Vec2::new(x, y)),
+                MovementState{position: Vec2::new(x, y), rotation: Quat::default()},
+                OldMovementState{position: Vec2::new(x, y), rotation: Quat::default()},
                 Velocity(random_vec2(5.0, &mut rng)),
             ));
         }

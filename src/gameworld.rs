@@ -18,11 +18,17 @@ impl Plugin for GameWorldPlugin {
 #[derive(Component)]
 pub struct Player;
 
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-pub struct Position(pub Vec2);
+#[derive(Debug, Component, Clone, Copy, Default)]
+pub struct MovementState{
+    pub position: Vec2,
+    pub rotation: Quat,
+}
 
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-pub struct OldPosition(pub Vec2);
+#[derive(Debug, Component, Clone, Copy, Default)]
+pub struct OldMovementState{
+    pub position: Vec2,
+    pub rotation: Quat,
+}
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
 pub struct Velocity(pub Vec2);
@@ -124,10 +130,10 @@ pub fn pos_to_lattice(
 fn spawn_new_tiles(
     mut commands: Commands,
     mut centre_tile: ResMut<CentreTile>,
-    pos_query: Single<&Position, With<Player>>,
+    state_query: Single<&MovementState, With<Player>>,
 ) {
-    let current_pos = pos_query.into_inner();
-    let current_lattice_pos = pos_to_lattice(current_pos.0);
+    let current_state = state_query.into_inner();
+    let current_lattice_pos = pos_to_lattice(current_state.position);
 
     if current_lattice_pos != centre_tile.0 {
         // Dumb way: Create a Vec of positions for new and old tiles, and find the
@@ -154,11 +160,11 @@ fn spawn_new_tiles(
 
 fn cull_tiles(
     mut commands: Commands,
-    pos_query: Single<&Position, With<Player>>,
+    state_query: Single<&MovementState, With<Player>>,
     tile_query: Query<(Entity, &WorldTile)>,
 ) {
-    let current_pos = pos_query.into_inner();
-    let current_tile = pos_to_lattice(current_pos.0);
+    let current_state = state_query.into_inner();
+    let current_tile = pos_to_lattice(current_state.position);
 
     for (entity, world_tile) in tile_query.iter() {
         if world_tile.distance(current_tile) > RENDER_DISTANCE {
