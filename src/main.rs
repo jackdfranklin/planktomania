@@ -83,8 +83,8 @@ fn setup(
             Plankton,
             Eatable,
             species,
-            MovementState{position: Vec2::new(x, y), rotation: Quat::default()},
-            OldMovementState{position: Vec2::new(x, y), rotation: Quat::default()},
+            MovementState{position: Vec2::new(x, y), rotation: 0.0},
+            OldMovementState{position: Vec2::new(x, y), rotation: 0.0},
             Velocity(random_vec2(5.0, &mut rng)),
         ));
     }
@@ -95,7 +95,7 @@ fn setup(
         Transform::from_xyz(
             0.0,
             0.0,
-            0.0,
+            0.5,
         ),
         Plankton,
         Player,
@@ -161,7 +161,7 @@ fn accumulate_input(
         let direction = input.movement.angle_to(Vec2::Y);
 
         old_state.rotation = state.rotation;
-        state.rotation = Quat::from_rotation_z(direction);
+        state.rotation = direction;
 
         velocity.0 += 150.0 * input.movement.normalize_or_zero();
 
@@ -234,15 +234,15 @@ fn update_transforms(
         let delta = fixed_time.overstep_fraction();
         // Linear interpolate between old and current positions
         let translation = old_state.position.lerp(state.position, delta); 
-        //let rotation = old_state.rotation.lerp(state.rotation, delta);
-        transform.translation = Vec3::new(translation.x, translation.y, 0.0);
-        transform.rotation = state.rotation;
+        let rotation = old_state.rotation.lerp(state.rotation, delta);
+        transform.translation = Vec3::new(translation.x, translation.y, 0.5);
+        transform.rotate_z(rotation);
     }
 }
 
 fn update_camera(
     mut camera: Single<&mut Transform, (With<Camera2d>, Without<Player>)>,
-    player: Single<&Transform, (With<Player>, Without<Camera2d>)>,
+    player: Single<&Transform, With<Player>>,
     time: Res<Time>,
 ) {
     let Vec3 { x, y, .. } = player.translation;
@@ -295,8 +295,8 @@ fn spawn_new_plankton(
                 Plankton,
                 Eatable,
                 species,
-                MovementState{position: Vec2::new(x, y), rotation: Quat::default()},
-                OldMovementState{position: Vec2::new(x, y), rotation: Quat::default()},
+                MovementState{position: Vec2::new(x, y), rotation: 0.0},
+                OldMovementState{position: Vec2::new(x, y), rotation: 0.0},
                 Velocity(random_vec2(5.0, &mut rng)),
             ));
         }
