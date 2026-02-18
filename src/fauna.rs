@@ -7,10 +7,10 @@ pub enum SpeciesType {
     GreenPlankton,
 }
 
-pub fn get_nutrition(species: &SpeciesType) -> u32 {
+pub fn get_nutrition(species: &SpeciesType) -> f32 {
     match species {
-        SpeciesType::RedPlankton => 1,
-        SpeciesType::GreenPlankton => 1,
+        SpeciesType::RedPlankton => 1.0,
+        SpeciesType::GreenPlankton => 1.0,
     }
 }
 
