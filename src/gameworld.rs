@@ -21,13 +21,13 @@ pub struct Player;
 #[derive(Debug, Component, Clone, Copy, Default)]
 pub struct MovementState{
     pub position: Vec2,
-    pub rotation: f32,
+    pub rotation: Quat,
 }
 
 #[derive(Debug, Component, Clone, Copy, Default)]
 pub struct OldMovementState{
     pub position: Vec2,
-    pub rotation: f32,
+    pub rotation: Quat,
 }
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]

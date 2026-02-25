@@ -19,6 +19,7 @@ fn main() {
         .add_plugins(GameWorldPlugin)
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
+        .add_systems(Update, print_player_pos)
         .add_systems(Update, random_motion)
         .add_systems(Update, (update_transforms, update_camera).chain())
         .add_systems(Update, spawn_new_plankton)
@@ -84,21 +85,23 @@ fn setup(
             Plankton,
             Eatable,
             species,
-            MovementState{position: Vec2::new(x, y), rotation: 0.0},
-            OldMovementState{position: Vec2::new(x, y), rotation: 0.0},
+            MovementState{position: Vec2::new(x, y), rotation: Quat::default()},
+            OldMovementState{position: Vec2::new(x, y), rotation: Quat::default()},
             Velocity(random_vec2(5.0, &mut rng)),
+            Acceleration::default(),
         ));
     }
     let copepod_handle = asset_server.load("copepod_low_res.png");
     // Spawn the player
     commands.spawn((
         Sprite::from_image(copepod_handle),
+        Transform::from_xyz(0.0, 0.0, 2.5),
         Plankton,
         Player,
         Predator,
         Mass(10.0),
-        MovementState::default(),
-        OldMovementState::default(),
+        MovementState{position: Vec2::ZERO, rotation: Quat::default()},
+        OldMovementState{position: Vec2::ZERO, rotation: Quat::default()},
         Velocity::default(),
         Acceleration::default(),
         AccumulatedInput::default(),
@@ -130,10 +133,9 @@ fn accumulate_input(
         &mut AccumulatedInput,
         &mut Velocity,
         &mut MovementState,
-        &mut OldMovementState,
         &mut SwimTimer)>,
 ) {
-    let (mut input, mut velocity, mut state, mut old_state, mut swim_timer) = player.into_inner();
+    let (mut input, mut velocity, mut state, mut swim_timer) = player.into_inner();
 
     swim_timer.0.tick(time.delta());
 
@@ -153,11 +155,7 @@ fn accumulate_input(
             input.movement.x += 1.0;
         }
 
-        // Want clockwise angle from y-axis
-        let direction = input.movement.angle_to(Vec2::Y);
-
-        old_state.rotation = state.rotation;
-        state.rotation = direction;
+        state.rotation = Quat::from_rotation_arc(Vec3::Y, input.movement.normalize_or_zero().extend(0.0));
 
         velocity.0 += 150.0 * input.movement.normalize_or_zero();
 
@@ -230,9 +228,17 @@ fn update_transforms(
         let delta = fixed_time.overstep_fraction();
         // Linear interpolate between old and current positions
         let translation = old_state.position.lerp(state.position, delta); 
-        let rotation = old_state.rotation.lerp(state.rotation, delta);
-        transform.translation = Vec3::new(translation.x, translation.y, 0.5);
-        transform.rotate_z(rotation);
+        let z_level = transform.translation.z;
+        transform.translation = translation.extend(z_level);
+
+        // Update rotation instantly
+        transform.rotation = state.rotation;
+    }
+}
+
+fn print_player_pos(query: Query<&Transform, With<Player>>){
+    for transform in query.iter() {
+        println!("{}", transform.rotation);
     }
 }
 
@@ -291,8 +297,8 @@ fn spawn_new_plankton(
                 Plankton,
                 Eatable,
                 species,
-                MovementState{position: Vec2::new(x, y), rotation: 0.0},
-                OldMovementState{position: Vec2::new(x, y), rotation: 0.0},
+                MovementState{position: Vec2::new(x, y), rotation: Quat::default()},
+                OldMovementState{position: Vec2::new(x, y), rotation: Quat::default()},
                 Velocity(random_vec2(5.0, &mut rng)),
             ));
         }
