@@ -74,14 +74,14 @@ fn setup(
         let x: f32 = (rng.random::<f32>() - 0.5) * 2.0 * width;
         let y: f32 = (rng.random::<f32>() - 0.5) * 2.0 * height;
 
+        let star_handle = asset_server.load("star_diatom_low_res.png");
         commands.spawn((
-            Mesh2d(meshes.add(Circle::new(get_radius(&species)))),
-            MeshMaterial2d(materials.add(fauna::get_color(&species))),
+            Sprite::from_image(star_handle),
             Transform::from_xyz(
                 x,
                 y,
                 0.0,
-            ),
+            ).with_scale(Vec2::splat(0.1).extend(0.0)),
             Plankton,
             Eatable,
             species,
@@ -276,11 +276,11 @@ fn random_motion(
 
 fn spawn_new_plankton(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
     new_tiles_query: Query<(Entity, &WorldTile), Without<ActiveTile>>,
 ) {
     let mut rng = rand::rng();
+    let star_handle = asset_server.load("star_diatom_low_res.png");
     for (entity, new_tile) in new_tiles_query.iter() {
         let tile_centre = lattice_to_pos(new_tile.pos());
         for _ in 0..20 {
@@ -290,13 +290,12 @@ fn spawn_new_plankton(
             let y: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.y;
 
             commands.spawn((
-                Mesh2d(meshes.add(Circle::new(get_radius(&species)))),
-                MeshMaterial2d(materials.add(fauna::get_color(&species))),
+                Sprite::from_image(star_handle.clone()),
                 Transform::from_xyz(
                     x,
                     y,
                     0.0,
-                ),
+                ).with_scale(Vec2::splat(0.1).extend(0.0)),
                 Plankton,
                 Eatable,
                 species,
