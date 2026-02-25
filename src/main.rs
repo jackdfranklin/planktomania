@@ -1,5 +1,7 @@
-use bevy::{prelude::*};
-use bevy::window::{Window, PrimaryWindow};
+use bevy::{
+    prelude::*,
+    window::{Window, PrimaryWindow},
+};
 use rand::Rng;
 
 const PLAYER_RADIUS: f32 = 15.0;
@@ -20,6 +22,8 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
         .add_systems(Update, random_motion)
+        .add_systems(Update, gamepad_usage_system)
+        .add_systems(Update, gamepad_input)
         .add_systems(Update, (update_transforms, update_camera).chain())
         .add_systems(Update, spawn_new_plankton)
         .add_systems(FixedUpdate, (update_velocities, update_positions).chain())
@@ -122,6 +126,44 @@ fn update_velocities(
         velocity.0 = speed.min(PLAYER_MAX_SPEED) * direction;
 
         acceleration.0 = Vec2::ZERO;
+    }
+}
+
+fn gamepad_usage_system(gamepads: Query<(&Name, &Gamepad)>) {
+    for (name, gamepad) in &gamepads {
+        println!("{name}");
+
+        if gamepad.just_pressed(GamepadButton::North) {
+            println!("{} just pressed North", name)
+        }
+
+        if let Some(left_stick_x) = gamepad.get(GamepadAxis::LeftStickX)  {
+            println!("left stick X: {}", left_stick_x)
+        }
+        if let Some(left_stick_y) = gamepad.get(GamepadAxis::LeftStickY)  {
+            println!("right stick Y: {}", left_stick_y)
+        }
+    }
+}
+
+fn gamepad_input(
+    gamepads: Query<&Gamepad>,
+    player: Single<&mut MovementState, With<Player>>,
+) {
+    let mut state = player.into_inner();
+
+    for gamepad in &gamepads {
+        let left_stick_x = gamepad.get(GamepadAxis::LeftStickX).unwrap();
+        let left_stick_y = gamepad.get(GamepadAxis::LeftStickY).unwrap();
+
+        let direction = Vec2::new(left_stick_x, left_stick_y);
+
+        if direction != Vec2::ZERO {
+
+            state.rotation = Quat::from_rotation_arc(Vec3::Y, direction.normalize_or_zero().extend(0.0));
+
+        }
+
     }
 }
 
