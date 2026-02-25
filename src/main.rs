@@ -19,7 +19,6 @@ fn main() {
         .add_plugins(GameWorldPlugin)
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
-        .add_systems(Update, print_player_pos)
         .add_systems(Update, random_motion)
         .add_systems(Update, (update_transforms, update_camera).chain())
         .add_systems(Update, spawn_new_plankton)
