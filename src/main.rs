@@ -155,9 +155,12 @@ fn accumulate_input(
             input.movement.x += 1.0;
         }
 
-        state.rotation = Quat::from_rotation_arc(Vec3::Y, input.movement.normalize_or_zero().extend(0.0));
+        if input.movement != Vec2::ZERO {
 
-        velocity.0 += 150.0 * input.movement.normalize_or_zero();
+            state.rotation = Quat::from_rotation_arc(Vec3::Y, input.movement.normalize_or_zero().extend(0.0));
+
+            velocity.0 += 150.0 * input.movement.normalize_or_zero();
+        }
 
         swim_timer.reset();
     }
