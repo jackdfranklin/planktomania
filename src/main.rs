@@ -22,7 +22,6 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
         .add_systems(Update, random_motion)
-        .add_systems(Update, gamepad_usage_system)
         .add_systems(Update, gamepad_input)
         .add_systems(Update, (update_transforms, update_camera).chain())
         .add_systems(Update, spawn_new_plankton)
@@ -146,23 +145,46 @@ fn gamepad_usage_system(gamepads: Query<(&Name, &Gamepad)>) {
     }
 }
 
+fn flush_drift(input: f32) -> f32 {
+    if input.abs() < 0.01 {
+        0.0
+    } else {
+        input
+    }
+}
+
 fn gamepad_input(
     gamepads: Query<&Gamepad>,
-    player: Single<&mut MovementState, With<Player>>,
+    player: Single<(
+        &mut MovementState,
+        &mut Velocity, 
+        &Transform), 
+    With<Player>>,
 ) {
-    let mut state = player.into_inner();
+    let (mut state, mut velocity, transform) = player.into_inner();
 
     for gamepad in &gamepads {
-        let left_stick_x = gamepad.get(GamepadAxis::LeftStickX).unwrap();
-        let left_stick_y = gamepad.get(GamepadAxis::LeftStickY).unwrap();
+        let left_stick_x = flush_drift(gamepad.get(GamepadAxis::LeftStickX).unwrap());
+        let left_stick_y = flush_drift(gamepad.get(GamepadAxis::LeftStickY).unwrap());
 
-        let direction = Vec2::new(left_stick_x, left_stick_y);
+        let raw_direction = Vec2::new(left_stick_x, left_stick_y);
+        let direction = if raw_direction.length() > 0.01 {
+            raw_direction
+        } else {
+            Vec2::ZERO
+        };
 
         if direction != Vec2::ZERO {
 
             state.rotation = Quat::from_rotation_arc(Vec3::Y, direction.normalize_or_zero().extend(0.0));
 
         }
+
+        if gamepad.pressed(GamepadButton::South) {
+            let movement_direction = transform.rotation * Vec3::Y;
+            velocity.0 += 150.0 * movement_direction.xy();
+        }
+
 
     }
 }
