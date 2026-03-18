@@ -2,6 +2,9 @@ use std::f32::consts::PI;
 
 use bevy::{prelude::*};
 use bevy::window::{Window, PrimaryWindow};
+
+use avian2d::prelude::*;
+
 use rand::{Rng, seq::IndexedRandom};
 
 const PLAYER_RADIUS: f32 = 15.0;
@@ -119,7 +122,8 @@ fn accumulate_input(
         &mut AccumulatedInput,
         &mut Velocity,
         &mut MovementState,
-        &mut SwimTimer)>,
+        &mut SwimTimer),
+        With<Player>>,
 ) {
     let (mut input, mut velocity, mut state, mut swim_timer) = player.into_inner();
 
@@ -174,21 +178,22 @@ fn distance(a: Vec2, b: Vec2) -> f32 {
 
 fn consume_plankton(
     mut commands: Commands,
-    mut predator: Query<(&Transform, &mut Mass), With<Predator>>,
+    mut predator_query: Query<(&Transform, &mut Mass), With<Predator>>,
     plankton_list: Query<(Entity, &SpeciesType, &Transform), With<Eatable>>,
 ) {
-    let (predator_pos, mut mass) = predator.single_mut().unwrap();
-    let predator_pos = transform_to_vec2(predator_pos);
+    for (predator_pos, mut mass) in predator_query.iter_mut() {
+        let predator_pos = transform_to_vec2(predator_pos);
 
-    for (plankton_entity, species, &plankton_pos) in plankton_list.iter() {
-        let plankton_pos = transform_to_vec2(&plankton_pos);
-        let distance = distance(predator_pos, plankton_pos);
+        for (plankton_entity, species, &plankton_pos) in plankton_list.iter() {
+            let plankton_pos = transform_to_vec2(&plankton_pos);
+            let distance = distance(predator_pos, plankton_pos);
 
-        let plankton_radius = get_radius(species);
+            let plankton_radius = get_radius(species);
 
-        if distance < (PLAYER_RADIUS + plankton_radius) {
-            mass.0 += get_nutrition(species);
-            commands.entity(plankton_entity).despawn();
+            if distance < (PLAYER_RADIUS + plankton_radius) {
+                mass.0 += get_nutrition(species);
+                commands.entity(plankton_entity).despawn();
+            }
         }
     }
 }
@@ -295,6 +300,31 @@ fn spawn_new_plankton(
                 Velocity(random_vec2(5.0, &mut rng)),
             ));
         }
+
+        // % chance of another copepod spawning
+        if rng.random::<f32>() < 0.1 {
+            let x: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.x; 
+            let y: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.y;
+            let theta: f32 = rng.random::<f32>() * 2.0 * PI;
+            let rotation = Quat::from_rotation_z(theta);
+
+            let copepod_handle = asset_server.load("copepod.png");
+
+            commands.spawn((
+                Sprite::from_image(copepod_handle),
+                Transform::from_xyz(x, y, 2.5),
+                Plankton,
+                Predator,
+                Mass(10.0),
+                MovementState{position: Vec2::new(x, y), rotation},
+                OldMovementState{position: Vec2::new(x, y), rotation},
+                Velocity::default(),
+                Acceleration::default(),
+                AccumulatedInput::default(),
+                SwimTimer(Timer::from_seconds(1.5, TimerMode::Repeating)),
+            ));
+        }
         commands.entity(entity).insert(ActiveTile);
     }
+
 }
