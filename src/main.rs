@@ -17,6 +17,7 @@ use gameworld::*;
 
 fn main() {
     App::new()
+//        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_plugins(DefaultPlugins)
         .add_plugins(GameWorldPlugin)
         .add_systems(Startup, setup)
@@ -286,7 +287,7 @@ fn spawn_new_plankton(
                 Sprite::from_image(species_handle.clone()),
                 Transform::from_xyz(x, y, 0.0)
                 .with_rotation(rotation)
-                .with_scale(Vec2::splat(0.3).extend(0.0)),
+                .with_scale(Vec2::splat(0.5).extend(0.0)),
                 Plankton,
                 Eatable,
                 MovementState{position: Vec2::new(x, y), rotation},
