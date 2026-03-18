@@ -25,6 +25,7 @@ fn main() {
         .add_plugins(GameWorldPlugin)
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
+        .add_systems(PreUpdate, swimming_system)
         .add_systems(Update, random_motion)
         .add_systems(Update, (update_transforms, update_camera).chain())
         .add_systems(Update, spawn_new_plankton)
@@ -153,6 +154,25 @@ fn accumulate_input(
         }
 
         swim_timer.reset();
+    }
+}
+
+fn swimming_system(
+    time: Res<Time>,
+    mut swimmer_query: Query<(&mut Velocity, &mut SwimTimer), Without<Player>>,
+) {
+
+    let mut rng = rand::rng();
+
+    for (mut velocity, mut swim_timer) in swimmer_query.iter_mut() {
+        if swim_timer.is_finished() {
+            // Swim in a random direction
+            velocity.0 = random_vec2(150.0, &mut rng);
+            // Reset swimming timer
+            swim_timer.reset();
+        } else {
+            swim_timer.0.tick(time.delta());
+        }
     }
 }
 
@@ -307,6 +327,9 @@ fn spawn_new_plankton(
             let y: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.y;
             let theta: f32 = rng.random::<f32>() * 2.0 * PI;
             let rotation = Quat::from_rotation_z(theta);
+            let speed = 50.0; // * rng.random::<f32>() + 5.0;
+            // Rotate the initial direction to the new direction
+            let velocity = speed * (rotation * Vec3::Y);
 
             let copepod_handle = asset_server.load("copepod.png");
 
@@ -318,7 +341,7 @@ fn spawn_new_plankton(
                 Mass(10.0),
                 MovementState{position: Vec2::new(x, y), rotation},
                 OldMovementState{position: Vec2::new(x, y), rotation},
-                Velocity::default(),
+                Velocity(Vec2::new(velocity.x, velocity.y)),
                 Acceleration::default(),
                 AccumulatedInput::default(),
                 SwimTimer(Timer::from_seconds(1.5, TimerMode::Repeating)),
