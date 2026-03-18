@@ -1,4 +1,5 @@
 use std::f32::consts::PI;
+use std::time::Duration;
 
 use bevy::{prelude::*};
 use bevy::window::{Window, PrimaryWindow};
@@ -344,7 +345,11 @@ fn spawn_new_plankton(
                 Velocity(Vec2::new(velocity.x, velocity.y)),
                 Acceleration::default(),
                 AccumulatedInput::default(),
-                SwimTimer(Timer::from_seconds(1.5, TimerMode::Repeating)),
+                SwimTimer(
+                    Timer::from_seconds(1.5, TimerMode::Once)
+                    .tick(Duration::from_secs_f32(1.5 * rng.random::<f32>()))
+                        .clone()
+                ),
             ));
         }
         commands.entity(entity).insert(ActiveTile);
