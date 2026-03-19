@@ -82,7 +82,18 @@ fn setup(
     // Spawn the player
     commands.spawn((
         RigidBody::Dynamic,
-        Sprite::from_image(copepod_handle),
+        Sprite {
+            image: copepod_handle,
+            custom_size: Some(Vec2::new(240.0, 258.0)),
+            image_mode: SpriteImageMode::Scale(SpriteScalingMode::FitCenter),
+            ..default()
+        },
+        Collider::compound(vec![
+            (Vec2::new(0.0, 20.0), Rotation::IDENTITY, Collider::capsule(40.0, 100.0)),
+        ]),
+        ColliderDensity(10.0),
+        Mesh2d(meshes.add(Capsule2d::new(40.0, 100.0))),
+        MeshMaterial2d(materials.add(Color::WHITE)),
         Transform::from_xyz(0.0, 0.0, 2.5),
         Plankton,
         Player,
@@ -93,9 +104,9 @@ fn setup(
         SwimTimer(Timer::from_seconds(0.5, TimerMode::Repeating)),
     ))
     .with_child((
-            Collider::circle(12.5),
-            Transform::from_xyz(0.0, 55.0, 10.0),
-            Mesh2d(meshes.add(Circle::new(12.5))),
+            Collider::circle(15.0),
+            Transform::from_xyz(0.0, 110.0, 10.0),
+            Mesh2d(meshes.add(Circle::new(15.0))),
             MeshMaterial2d(materials.add(Color::WHITE)),
             Sensor,
             Mouth,
@@ -242,7 +253,7 @@ fn spawn_new_plankton(
             commands.spawn((
                 RigidBody::Dynamic,
                 diatom_collider(species),
-                ColliderDensity(2.0),
+                ColliderDensity(0.5),
                 LinearVelocity(random_vec2(5.0, &mut rng)),
                 Sprite::from_image(species_handle.clone()),
                 Transform::from_xyz(x, y, 0.0)
@@ -260,6 +271,7 @@ fn spawn_new_plankton(
             let theta: f32 = rng.random::<f32>() * 2.0 * PI;
             let rotation = Quat::from_rotation_z(theta);
             let speed = 50.0; // * rng.random::<f32>() + 5.0;
+            let size = 1.4 - 0.8 * rng.random::<f32>();
             // Rotate the initial direction to the new direction
             let velocity = speed * (rotation * Vec3::Y);
 
@@ -267,9 +279,14 @@ fn spawn_new_plankton(
 
             commands.spawn((
                 RigidBody::Dynamic,
-                Mass(10.0),
+                Mass(10.0 * size),
                 LinearVelocity::from(Vec2::new(velocity.x, velocity.y)),
-                Sprite::from_image(copepod_handle),
+                Sprite {
+                    image: copepod_handle,
+                    custom_size: Some(size * Vec2::new(240.0, 258.0)),
+                    image_mode: SpriteImageMode::Scale(SpriteScalingMode::FitCenter),
+                    ..default()
+                },
                 Transform::from_xyz(x, y, 2.5)
                 .with_rotation(rotation),
                 Plankton,
@@ -282,10 +299,10 @@ fn spawn_new_plankton(
                 ),
             ))
             .with_child((
-                Collider::circle(12.5),
+                Collider::circle(12.5 * size),
                 Sensor,
                 Mouth,
-                Transform::from_xyz(0.0, 55.0, 10.0),
+                Transform::from_xyz(0.0, 55.0 * size, 10.0),
             ));
         }
         commands.entity(entity).insert(ActiveTile);
