@@ -146,15 +146,17 @@ fn accumulate_input(
 
 fn swimming_system(
     time: Res<Time>,
-    mut swimmer_query: Query<(&mut LinearVelocity, &mut SwimTimer), Without<Player>>,
+    mut swimmer_query: Query<(&mut LinearVelocity, &mut Transform, &mut SwimTimer), Without<Player>>,
 ) {
 
     let mut rng = rand::rng();
 
-    for (mut velocity, mut swim_timer) in swimmer_query.iter_mut() {
+    for (mut velocity, mut transform, mut swim_timer) in swimmer_query.iter_mut() {
         if swim_timer.is_finished() {
             // Swim in a random direction
-            velocity.0 = random_vec2(150.0, &mut rng);
+            let impulse = random_vec2(150.0, &mut rng); 
+            velocity.0 = impulse;
+            transform.rotation = Quat::from_rotation_arc(Vec3::Y, impulse.normalize_or_zero().extend(0.0));
             // Reset swimming timer
             swim_timer.reset();
         } else {
@@ -264,14 +266,15 @@ fn spawn_new_plankton(
             let copepod_handle = asset_server.load("copepod.png");
 
             commands.spawn((
-                RigidBody::Kinematic,
+                RigidBody::Dynamic,
+                Mass(10.0),
                 LinearVelocity::from(Vec2::new(velocity.x, velocity.y)),
                 Sprite::from_image(copepod_handle),
                 Transform::from_xyz(x, y, 2.5)
                 .with_rotation(rotation),
                 Plankton,
                 Predator,
-                LinearDamping(0.8),
+                LinearDamping(2.0),
                 SwimTimer(
                     Timer::from_seconds(1.5, TimerMode::Once)
                     .tick(Duration::from_secs_f32(1.5 * rng.random::<f32>()))
