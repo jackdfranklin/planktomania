@@ -10,31 +10,13 @@ impl Plugin for GameWorldPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(CentreTile(IVec2::ZERO))
             .add_systems(Startup, spawn_starting_tiles)
-            .add_systems(Update, cull_tiles)
-            .add_systems(Update, spawn_new_tiles);
+            .add_systems(FixedUpdate, cull_tiles)
+            .add_systems(FixedUpdate, spawn_new_tiles);
     }
 }
 
 #[derive(Component)]
 pub struct Player;
-
-#[derive(Debug, Component, Clone, Copy, Default)]
-pub struct MovementState{
-    pub position: Vec2,
-    pub rotation: Quat,
-}
-
-#[derive(Debug, Component, Clone, Copy, Default)]
-pub struct OldMovementState{
-    pub position: Vec2,
-    pub rotation: Quat,
-}
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-pub struct Velocity(pub Vec2);
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-pub struct Acceleration(pub Vec2);
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Eq, Default, Deref, DerefMut)]
 pub struct WorldTile(IVec2);
@@ -62,9 +44,6 @@ impl Tile for WorldTile {
 
 #[derive(Component)]
 pub struct ActiveTile;
-
-//#[derive(Resource)]
-//struct TileMap(HashMap<WorldTile, Entity>);
 
 #[derive(Debug, Resource, Clone, Copy, PartialEq, Eq, Default, Deref, DerefMut)]
 pub struct CentreTile(IVec2);
@@ -130,10 +109,10 @@ pub fn pos_to_lattice(
 fn spawn_new_tiles(
     mut commands: Commands,
     mut centre_tile: ResMut<CentreTile>,
-    state_query: Single<&MovementState, With<Player>>,
+    transform: Single<&Transform, With<Player>>,
 ) {
-    let current_state = state_query.into_inner();
-    let current_lattice_pos = pos_to_lattice(current_state.position);
+    let current_pos = transform.into_inner().translation;
+    let current_lattice_pos = pos_to_lattice(Vec2::new(current_pos.x, current_pos.y));
 
     if current_lattice_pos != centre_tile.0 {
         // Dumb way: Create a Vec of positions for new and old tiles, and find the
@@ -160,11 +139,11 @@ fn spawn_new_tiles(
 
 fn cull_tiles(
     mut commands: Commands,
-    state_query: Single<&MovementState, With<Player>>,
+    transform: Single<&Transform, With<Player>>,
     tile_query: Query<(Entity, &WorldTile)>,
 ) {
-    let current_state = state_query.into_inner();
-    let current_tile = pos_to_lattice(current_state.position);
+    let current_pos = transform.into_inner().translation;
+    let current_tile = pos_to_lattice(Vec2::new(current_pos.x, current_pos.y));
 
     for (entity, world_tile) in tile_query.iter() {
         if world_tile.distance(current_tile) > RENDER_DISTANCE {

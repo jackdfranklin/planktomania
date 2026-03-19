@@ -8,9 +8,6 @@ use avian2d::prelude::*;
 
 use rand::{Rng, seq::IndexedRandom};
 
-const PLAYER_RADIUS: f32 = 15.0;
-const PLAYER_MAX_SPEED: f32 = 100.0;
-
 mod fauna;
 use fauna::SpeciesType;
 
@@ -21,17 +18,16 @@ use gameworld::*;
 
 fn main() {
     App::new()
-//        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_plugins(DefaultPlugins)
+        .add_plugins(PhysicsPlugins::default().with_length_unit(0.25))
+        .insert_resource(Gravity::ZERO)
         .add_plugins(GameWorldPlugin)
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
         .add_systems(PreUpdate, swimming_system)
-        .add_systems(Update, random_motion)
-        .add_systems(Update, (update_transforms, update_camera).chain())
+        .add_systems(PostUpdate, update_camera)
         .add_systems(Update, spawn_new_plankton)
-        .add_systems(FixedUpdate, (update_velocities, update_positions).chain())
-        .add_systems(FixedUpdate, consume_plankton)
+        .add_systems(Update, eating_system)
         .run();
 }
 
@@ -42,7 +38,7 @@ struct Plankton;
 struct Predator;
 
 #[derive(Component)]
-struct Mass(f32);
+struct Mouth;
 
 #[derive(Component)]
 struct Eatable;
@@ -69,52 +65,42 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     let mut rng = rand::rng();
-    commands.spawn(Camera2d);
+    commands.spawn((
+        Camera2d,
+        Camera {
+            clear_color: ClearColorConfig::Custom(Color::srgb(0.0, 0.067, 0.133)),
+            ..default()
+        },
+    ));
 
     let window = window_query.into_inner();
 
     let width = window.width();
     let height = window.height();
-    for _ in 0..10 {
-        let species = fauna::sample_species(&mut rng);
-
-        let x: f32 = (rng.random::<f32>() - 0.5) * 2.0 * width;
-        let y: f32 = (rng.random::<f32>() - 0.5) * 2.0 * height;
-
-    }
+    
     let copepod_handle = asset_server.load("copepod.png");
     // Spawn the player
     commands.spawn((
+        RigidBody::Dynamic,
         Sprite::from_image(copepod_handle),
         Transform::from_xyz(0.0, 0.0, 2.5),
         Plankton,
         Player,
         Predator,
         Mass(10.0),
-        MovementState{position: Vec2::ZERO, rotation: Quat::default()},
-        OldMovementState{position: Vec2::ZERO, rotation: Quat::default()},
-        Velocity::default(),
-        Acceleration::default(),
+        LinearDamping(2.0),
         AccumulatedInput::default(),
-        SwimTimer(Timer::from_seconds(1.5, TimerMode::Repeating)),
-    ));
-}
-
-fn update_velocities(
-    fixed_time: Res<Time<Fixed>>,
-    mut query: Query<(&mut Velocity, &mut Acceleration)>,
-) {
-    let drag_coeff = 0.5;
-    for (mut velocity, mut acceleration) in query.iter_mut() {
-        let drag = -drag_coeff * velocity.0;
-        velocity.0 += acceleration.0 * fixed_time.delta_secs(); 
-        velocity.0 += drag * fixed_time.delta_secs();
-        let speed = velocity.0.length();
-        let direction = velocity.0.normalize_or_zero();
-        velocity.0 = speed.min(PLAYER_MAX_SPEED) * direction;
-
-        acceleration.0 = Vec2::ZERO;
-    }
+        SwimTimer(Timer::from_seconds(0.5, TimerMode::Repeating)),
+    ))
+    .with_child((
+            Collider::circle(12.5),
+            Transform::from_xyz(0.0, 55.0, 10.0),
+            Mesh2d(meshes.add(Circle::new(12.5))),
+            MeshMaterial2d(materials.add(Color::WHITE)),
+            Sensor,
+            Mouth,
+            CollidingEntities::default(),
+        ));
 }
 
 fn accumulate_input(
@@ -122,12 +108,12 @@ fn accumulate_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     player: Single<(
         &mut AccumulatedInput,
-        &mut Velocity,
-        &mut MovementState,
+        &mut LinearVelocity,
+        &mut Transform,
         &mut SwimTimer),
         With<Player>>,
 ) {
-    let (mut input, mut velocity, mut state, mut swim_timer) = player.into_inner();
+    let (mut input, mut velocity, mut transform, mut swim_timer) = player.into_inner();
 
     swim_timer.0.tick(time.delta());
 
@@ -149,9 +135,9 @@ fn accumulate_input(
 
         if input.movement != Vec2::ZERO {
 
-            state.rotation = Quat::from_rotation_arc(Vec3::Y, input.movement.normalize_or_zero().extend(0.0));
+            transform.rotation = Quat::from_rotation_arc(Vec3::Y, input.movement.normalize_or_zero().extend(0.0));
 
-            velocity.0 += 150.0 * input.movement.normalize_or_zero();
+            velocity.0 = 200.0 * input.movement.normalize_or_zero();
         }
 
         swim_timer.reset();
@@ -160,7 +146,7 @@ fn accumulate_input(
 
 fn swimming_system(
     time: Res<Time>,
-    mut swimmer_query: Query<(&mut Velocity, &mut SwimTimer), Without<Player>>,
+    mut swimmer_query: Query<(&mut LinearVelocity, &mut SwimTimer), Without<Player>>,
 ) {
 
     let mut rng = rand::rng();
@@ -177,17 +163,6 @@ fn swimming_system(
     }
 }
 
-fn update_positions(
-    fixed_time: Res<Time<Fixed>>,
-    mut query: Query<(&mut MovementState, &mut OldMovementState, &Velocity)>
-) {
-    for (mut state, mut old_state, velocity) in query.iter_mut() {
-        old_state.position = state.position;
-        state.position.x += velocity.0.x * fixed_time.delta_secs();
-        state.position.y += velocity.0.y * fixed_time.delta_secs();
-    }
-}
-
 fn transform_to_vec2(transform: &Transform) -> Vec2 {
     Vec2::new(transform.translation.x, transform.translation.y)
 }
@@ -195,60 +170,6 @@ fn transform_to_vec2(transform: &Transform) -> Vec2 {
 fn distance(a: Vec2, b: Vec2) -> f32 {
     let diff = a - b;
     (diff.x * diff.x + diff.y * diff.y).sqrt()
-}
-
-fn consume_plankton(
-    mut commands: Commands,
-    mut predator_query: Query<(&Transform, &mut Mass), With<Predator>>,
-    plankton_list: Query<(Entity, &SpeciesType, &Transform), With<Eatable>>,
-) {
-    for (predator_pos, mut mass) in predator_query.iter_mut() {
-        let predator_pos = transform_to_vec2(predator_pos);
-
-        for (plankton_entity, species, &plankton_pos) in plankton_list.iter() {
-            let plankton_pos = transform_to_vec2(&plankton_pos);
-            let distance = distance(predator_pos, plankton_pos);
-
-            let plankton_radius = get_radius(species);
-
-            if distance < (PLAYER_RADIUS + plankton_radius) {
-                mass.0 += get_nutrition(species);
-                commands.entity(plankton_entity).despawn();
-            }
-        }
-    }
-}
-
-//fn cull_plankton(
-//    mut commands: Commands,
-//    centre_tile: Res<CentreTile>,
-//    plankton_query: Query<(Entity, &Position), With<Plankton>>,
-//) {
-//    for (plankton_entity, plankton_pos) in plankton_query {
-//        if centre_tile.distance(pos_to_lattice(plankton_pos.0)) > 10 {
-//            commands.entity(plankton_entity).despawn();
-//        }
-//    }
-//}
-
-fn update_transforms(
-    fixed_time: Res<Time<Fixed>>,
-    mut query: Query<(
-        &mut Transform,
-        &MovementState,
-        &OldMovementState,
-    )>,
-) {
-    for (mut transform, state, old_state) in query.iter_mut() {
-        let delta = fixed_time.overstep_fraction();
-        // Linear interpolate between old and current positions
-        let translation = old_state.position.lerp(state.position, delta); 
-        let z_level = transform.translation.z;
-        transform.translation = translation.extend(z_level);
-
-        // Update rotation instantly
-        transform.rotation = state.rotation;
-    }
 }
 
 fn print_player_pos(query: Query<&Transform, With<Player>>){
@@ -273,22 +194,25 @@ fn update_camera(
         .smooth_nudge(&direction, camera_decay_rate, time.delta_secs());
 }
 
-fn random_motion(
-    mut query: Query<&mut Acceleration>,
-) {
-    let mut rng = rand::rng();
-    let p = 0.005;
-    for mut acceleration in query.iter_mut() {
-        let q = rng.random::<f32>();
-        if q < p {
-            acceleration.0 = random_vec2(50.0, &mut rng);
-        }
+enum DiatomSpecies {
+    Star,
+    Circle,
+    Rod,
+}
+
+fn diatom_collider(species: &DiatomSpecies) -> Collider {
+    match species {
+        DiatomSpecies::Star => Collider::circle(12.5),
+        DiatomSpecies::Circle => Collider::circle(12.5),
+        DiatomSpecies::Rod => Collider::capsule(12.5, 2.5),
     }
 }
 
 fn spawn_new_plankton(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     new_tiles_query: Query<(Entity, &WorldTile), Without<ActiveTile>>,
 ) {
     let mut rng = rand::rng();
@@ -297,28 +221,33 @@ fn spawn_new_plankton(
     let star_handle = asset_server.load("star_diatom.png");
     let circle_handle = asset_server.load("circle_diatom.png");
     let rod_handle = asset_server.load("rod_diatom.png");
-    let handles = [star_handle, circle_handle, rod_handle];
+    let handles = [
+        (star_handle, DiatomSpecies::Star),
+        (circle_handle, DiatomSpecies::Circle),
+        (rod_handle, DiatomSpecies::Rod),
+    ];
 
     for (entity, new_tile) in new_tiles_query.iter() {
         let tile_centre = lattice_to_pos(new_tile.pos());
-        for _ in 0..20 {
+        for _ in 0..10 {
 
-            let species_handle = handles.choose(&mut rng).unwrap();
+            let (species_handle, species) = handles.choose(&mut rng).unwrap();
             let x: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.x; 
             let y: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.y;
             let theta: f32 = rng.random::<f32>() * 2.0 * PI;
             let rotation = Quat::from_rotation_z(theta);
 
             commands.spawn((
+                RigidBody::Dynamic,
+                diatom_collider(species),
+                ColliderDensity(2.0),
+                LinearVelocity(random_vec2(5.0, &mut rng)),
                 Sprite::from_image(species_handle.clone()),
                 Transform::from_xyz(x, y, 0.0)
-                .with_rotation(rotation)
-                .with_scale(Vec2::splat(0.5).extend(0.0)),
+//                .with_scale(Vec2::splat(0.5).extend(0.0))
+                .with_rotation(rotation),
                 Plankton,
                 Eatable,
-                MovementState{position: Vec2::new(x, y), rotation},
-                OldMovementState{position: Vec2::new(x, y), rotation},
-                Velocity(random_vec2(5.0, &mut rng)),
             ));
         }
 
@@ -335,24 +264,39 @@ fn spawn_new_plankton(
             let copepod_handle = asset_server.load("copepod.png");
 
             commands.spawn((
+                RigidBody::Kinematic,
+                LinearVelocity::from(Vec2::new(velocity.x, velocity.y)),
                 Sprite::from_image(copepod_handle),
-                Transform::from_xyz(x, y, 2.5),
+                Transform::from_xyz(x, y, 2.5)
+                .with_rotation(rotation),
                 Plankton,
                 Predator,
-                Mass(10.0),
-                MovementState{position: Vec2::new(x, y), rotation},
-                OldMovementState{position: Vec2::new(x, y), rotation},
-                Velocity(Vec2::new(velocity.x, velocity.y)),
-                Acceleration::default(),
-                AccumulatedInput::default(),
+                LinearDamping(0.8),
                 SwimTimer(
                     Timer::from_seconds(1.5, TimerMode::Once)
                     .tick(Duration::from_secs_f32(1.5 * rng.random::<f32>()))
                         .clone()
                 ),
+            ))
+            .with_child((
+                Collider::circle(12.5),
+                Sensor,
+                Mouth,
+                Transform::from_xyz(0.0, 55.0, 10.0),
             ));
         }
         commands.entity(entity).insert(ActiveTile);
     }
 
+}
+
+fn eating_system(
+    mut commands: Commands,
+    query: Query<(Entity, &CollidingEntities), With<Mouth>>,
+) {
+    for (eater_entity, colliding_entities) in query.iter() {
+        for entity in colliding_entities.iter() {
+            commands.entity(*entity).despawn();
+        }
+    }
 }
