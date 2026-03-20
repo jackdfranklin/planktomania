@@ -128,23 +128,6 @@ fn update_velocities(
     }
 }
 
-fn gamepad_usage_system(gamepads: Query<(&Name, &Gamepad)>) {
-    for (name, gamepad) in &gamepads {
-        println!("{name}");
-
-        if gamepad.just_pressed(GamepadButton::North) {
-            println!("{} just pressed North", name)
-        }
-
-        if let Some(left_stick_x) = gamepad.get(GamepadAxis::LeftStickX)  {
-            println!("left stick X: {}", left_stick_x)
-        }
-        if let Some(left_stick_y) = gamepad.get(GamepadAxis::LeftStickY)  {
-            println!("right stick Y: {}", left_stick_y)
-        }
-    }
-}
-
 fn flush_drift(input: f32) -> f32 {
     if input.abs() < 0.01 {
         0.0
