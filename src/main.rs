@@ -25,9 +25,10 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(PreUpdate, accumulate_input)
         .add_systems(PreUpdate, swimming_system)
-        .add_systems(PostUpdate, update_camera)
         .add_systems(Update, spawn_new_plankton)
-        .add_systems(Update, eating_system)
+        .add_systems(Update, attacking_system)
+        .add_systems(PostUpdate, damage_system)
+        .add_systems(PostUpdate, update_camera)
         .run();
 }
 
@@ -41,7 +42,27 @@ struct Predator;
 struct Mouth;
 
 #[derive(Component)]
+struct Health(u32);
+
+#[derive(Component)]
+struct HealthGain(u32);
+
+#[derive(Component)]
+struct Scared;
+
+#[derive(Component)]
+struct Hunting;
+
+#[derive(Component)]
 struct Eatable;
+
+#[derive(Component)]
+#[relationship(relationship_target = AttackedBy)]
+struct Attacking(pub Entity);
+
+#[derive(Component)]
+#[relationship_target(relationship = Attacking)]
+struct AttackedBy(Vec<Entity>);
 
 #[derive(Debug, Component, Clone, PartialEq, Default, Deref, DerefMut)]
 struct SwimTimer(Timer);
@@ -93,13 +114,12 @@ fn setup(
             image_mode: SpriteImageMode::Scale(SpriteScalingMode::FitCenter),
             ..default()
         },
-        Mesh2d(meshes.add(Capsule2d::new(40.0, 100.0))),
-        MeshMaterial2d(materials.add(Color::WHITE)),
         Transform::from_xyz(0.0, 0.0, 2.5),
         Plankton,
         Player,
+        Health(100),
+        HealthGain(0),
         Predator,
-        Mass(10.0),
         LinearDamping(2.0),
         AccumulatedInput::default(),
         SwimTimer(Timer::from_seconds(0.5, TimerMode::Repeating)),
@@ -260,6 +280,7 @@ fn spawn_new_plankton(
 //                .with_scale(Vec2::splat(0.5).extend(0.0))
                 .with_rotation(rotation),
                 Plankton,
+                Health(1),
                 Eatable,
             ));
         }
@@ -295,6 +316,8 @@ fn spawn_new_plankton(
                 .with_rotation(rotation),
                 Plankton,
                 Predator,
+                Health((100.0 * size) as u32),
+                HealthGain(0),
                 LinearDamping(2.0),
                 SwimTimer(
                     Timer::from_seconds(1.5, TimerMode::Once)
@@ -316,13 +339,41 @@ fn spawn_new_plankton(
 
 }
 
-fn eating_system(
+fn attacking_system(
     mut commands: Commands,
     query: Query<(Entity, &CollidingEntities), With<Mouth>>,
 ) {
-    for (eater_entity, colliding_entities) in query.iter() {
-        for entity in colliding_entities.iter() {
-            commands.entity(*entity).despawn();
+    for (attacking_entity, attacked_entities) in query.iter() {
+        for attacked_entity in attacked_entities.iter() {
+            commands.entity(attacking_entity).insert(Attacking(*attacked_entity));
         }
+    }
+}
+
+fn damage_system(
+    mut commands: Commands,
+    mut attacked_plankton: Query<(Entity, &mut Health, &AttackedBy)>,
+    mut attacking_plankton: Query<&mut HealthGain, With<Attacking>>,
+) {
+    for (attacked_entity, mut health, attackers) in attacked_plankton.iter_mut() {
+        for attacker in attackers.iter() {
+            health.0 -= 1;
+            if health.0 == 0 {
+                if let Ok(mut attacker_hpg) = attacking_plankton.get_mut(attacker) {
+                    attacker_hpg.0 += 1;
+                }
+                commands.entity(attacked_entity).despawn();
+                break;
+            }
+        }
+    }
+}
+
+fn gain_health(
+    mut query: Query<(&mut Health, &mut HealthGain)>,
+) {
+    for (mut health, mut health_gain) in query.iter_mut() {
+        health.0 += health_gain.0;
+        health_gain.0 = 0;
     }
 }
