@@ -82,16 +82,17 @@ fn setup(
     // Spawn the player
     commands.spawn((
         RigidBody::Dynamic,
+        Collider::compound(vec![
+            (Vec2::new(0.0, 20.0), Rotation::IDENTITY, Collider::capsule(40.0, 100.0)),
+        ]),
+        ColliderDensity(100.0),
+        AngularInertia(f32::INFINITY),
         Sprite {
             image: copepod_handle,
             custom_size: Some(Vec2::new(240.0, 258.0)),
             image_mode: SpriteImageMode::Scale(SpriteScalingMode::FitCenter),
             ..default()
         },
-        Collider::compound(vec![
-            (Vec2::new(0.0, 20.0), Rotation::IDENTITY, Collider::capsule(40.0, 100.0)),
-        ]),
-        ColliderDensity(10.0),
         Mesh2d(meshes.add(Capsule2d::new(40.0, 100.0))),
         MeshMaterial2d(materials.add(Color::WHITE)),
         Transform::from_xyz(0.0, 0.0, 2.5),
@@ -105,12 +106,11 @@ fn setup(
     ))
     .with_child((
             Collider::circle(15.0),
-            Transform::from_xyz(0.0, 110.0, 10.0),
-            Mesh2d(meshes.add(Circle::new(15.0))),
-            MeshMaterial2d(materials.add(Color::WHITE)),
+            CollidingEntities::default(),
+            ColliderDensity(100.0),
             Sensor,
             Mouth,
-            CollidingEntities::default(),
+            Transform::from_xyz(0.0, 110.0, 10.0),
         ));
 }
 
@@ -217,7 +217,7 @@ fn diatom_collider(species: &DiatomSpecies) -> Collider {
     match species {
         DiatomSpecies::Star => Collider::circle(12.5),
         DiatomSpecies::Circle => Collider::circle(12.5),
-        DiatomSpecies::Rod => Collider::capsule(12.5, 2.5),
+        DiatomSpecies::Rod => Collider::rectangle(50.0, 10.0),
     }
 }
 
@@ -242,7 +242,7 @@ fn spawn_new_plankton(
 
     for (entity, new_tile) in new_tiles_query.iter() {
         let tile_centre = lattice_to_pos(new_tile.pos());
-        for _ in 0..10 {
+        for _ in 0..5 {
 
             let (species_handle, species) = handles.choose(&mut rng).unwrap();
             let x: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.x; 
@@ -253,7 +253,7 @@ fn spawn_new_plankton(
             commands.spawn((
                 RigidBody::Dynamic,
                 diatom_collider(species),
-                ColliderDensity(0.5),
+                ColliderDensity(0.01),
                 LinearVelocity(random_vec2(5.0, &mut rng)),
                 Sprite::from_image(species_handle.clone()),
                 Transform::from_xyz(x, y, 0.0)
@@ -279,7 +279,11 @@ fn spawn_new_plankton(
 
             commands.spawn((
                 RigidBody::Dynamic,
-                Mass(10.0 * size),
+                Collider::compound(vec![
+                    (Vec2::new(0.0, 20.0 * size), Rotation::IDENTITY, Collider::capsule(40.0 * size, 100.0 * size)),
+                ]),
+                ColliderDensity(100.0),
+                AngularInertia(f32::INFINITY),
                 LinearVelocity::from(Vec2::new(velocity.x, velocity.y)),
                 Sprite {
                     image: copepod_handle,
@@ -299,10 +303,12 @@ fn spawn_new_plankton(
                 ),
             ))
             .with_child((
-                Collider::circle(12.5 * size),
+                Collider::circle(15.0 * size),
+                CollidingEntities::default(),
+                ColliderDensity(100.0),
                 Sensor,
                 Mouth,
-                Transform::from_xyz(0.0, 55.0 * size, 10.0),
+                Transform::from_xyz(0.0, 110.0 * size, 2.5),
             ));
         }
         commands.entity(entity).insert(ActiveTile);

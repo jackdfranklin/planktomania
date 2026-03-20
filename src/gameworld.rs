@@ -1,6 +1,6 @@
 use bevy::{prelude::*};
 
-const RENDER_DISTANCE: u32 = 20;
+const RENDER_DISTANCE: u32 = 15;
 
 pub const TILE_WIDTH: f32 = 250.0;
 
@@ -11,6 +11,7 @@ impl Plugin for GameWorldPlugin {
         app.insert_resource(CentreTile(IVec2::ZERO))
             .add_systems(Startup, spawn_starting_tiles)
             .add_systems(FixedUpdate, cull_tiles)
+            .add_systems(FixedUpdate, cull_entities)
             .add_systems(FixedUpdate, spawn_new_tiles);
     }
 }
@@ -147,6 +148,20 @@ fn cull_tiles(
 
     for (entity, world_tile) in tile_query.iter() {
         if world_tile.distance(current_tile) > RENDER_DISTANCE {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn cull_entities(
+    mut commands: Commands,
+    player_transform: Single<&Transform, With<Player>>,
+    entity_query: Query<(Entity, &Transform), Without<Player>>,
+) {
+    let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
+    for (entity, transform) in entity_query.iter() {
+        let entity_pos = Vec2::new(transform.translation.x, transform.translation.y);
+        if entity_pos.distance(player_pos) > 1.2 * TILE_WIDTH * (RENDER_DISTANCE as f32) {
             commands.entity(entity).despawn();
         }
     }
