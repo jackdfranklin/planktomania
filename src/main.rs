@@ -1,8 +1,8 @@
-use bevy::{
-    prelude::*,
-    window::{Window, PrimaryWindow},
-};
-use rand::Rng;
+use std::f32::consts::PI;
+
+use bevy::{prelude::*};
+use bevy::window::{Window, PrimaryWindow};
+use rand::{Rng, seq::IndexedRandom};
 
 const PLAYER_RADIUS: f32 = 15.0;
 const PLAYER_MAX_SPEED: f32 = 100.0;
@@ -17,6 +17,7 @@ use gameworld::*;
 
 fn main() {
     App::new()
+//        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_plugins(DefaultPlugins)
         .add_plugins(GameWorldPlugin)
         .add_systems(Startup, setup)
@@ -76,24 +77,8 @@ fn setup(
         let x: f32 = (rng.random::<f32>() - 0.5) * 2.0 * width;
         let y: f32 = (rng.random::<f32>() - 0.5) * 2.0 * height;
 
-        let star_handle = asset_server.load("star_diatom_low_res.png");
-        commands.spawn((
-            Sprite::from_image(star_handle),
-            Transform::from_xyz(
-                x,
-                y,
-                0.0,
-            ).with_scale(Vec2::splat(0.1).extend(0.0)),
-            Plankton,
-            Eatable,
-            species,
-            MovementState{position: Vec2::new(x, y), rotation: Quat::default()},
-            OldMovementState{position: Vec2::new(x, y), rotation: Quat::default()},
-            Velocity(random_vec2(5.0, &mut rng)),
-            Acceleration::default(),
-        ));
     }
-    let copepod_handle = asset_server.load("copepod_low_res.png");
+    let copepod_handle = asset_server.load("copepod.png");
     // Spawn the player
     commands.spawn((
         Sprite::from_image(copepod_handle),
@@ -326,27 +311,32 @@ fn spawn_new_plankton(
     new_tiles_query: Query<(Entity, &WorldTile), Without<ActiveTile>>,
 ) {
     let mut rng = rand::rng();
-    let star_handle = asset_server.load("star_diatom_low_res.png");
+
+    // Sprite handles
+    let star_handle = asset_server.load("star_diatom.png");
+    let circle_handle = asset_server.load("circle_diatom.png");
+    let rod_handle = asset_server.load("rod_diatom.png");
+    let handles = [star_handle, circle_handle, rod_handle];
+
     for (entity, new_tile) in new_tiles_query.iter() {
         let tile_centre = lattice_to_pos(new_tile.pos());
         for _ in 0..20 {
-            let species = fauna::sample_species(&mut rng);
 
+            let species_handle = handles.choose(&mut rng).unwrap();
             let x: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.x; 
             let y: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.y;
+            let theta: f32 = rng.random::<f32>() * 2.0 * PI;
+            let rotation = Quat::from_rotation_z(theta);
 
             commands.spawn((
-                Sprite::from_image(star_handle.clone()),
-                Transform::from_xyz(
-                    x,
-                    y,
-                    0.0,
-                ).with_scale(Vec2::splat(0.1).extend(0.0)),
+                Sprite::from_image(species_handle.clone()),
+                Transform::from_xyz(x, y, 0.0)
+                .with_rotation(rotation)
+                .with_scale(Vec2::splat(0.5).extend(0.0)),
                 Plankton,
                 Eatable,
-                species,
-                MovementState{position: Vec2::new(x, y), rotation: Quat::default()},
-                OldMovementState{position: Vec2::new(x, y), rotation: Quat::default()},
+                MovementState{position: Vec2::new(x, y), rotation},
+                OldMovementState{position: Vec2::new(x, y), rotation},
                 Velocity(random_vec2(5.0, &mut rng)),
             ));
         }
