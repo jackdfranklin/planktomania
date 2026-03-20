@@ -1,6 +1,8 @@
+use std::f32::consts::PI;
+
 use bevy::{prelude::*};
 use bevy::window::{Window, PrimaryWindow};
-use rand::Rng;
+use rand::{Rng, seq::IndexedRandom};
 
 const PLAYER_RADIUS: f32 = 15.0;
 const PLAYER_MAX_SPEED: f32 = 100.0;
@@ -15,6 +17,7 @@ use gameworld::*;
 
 fn main() {
     App::new()
+//        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_plugins(DefaultPlugins)
         .add_plugins(GameWorldPlugin)
         .add_systems(Startup, setup)
@@ -58,6 +61,7 @@ fn setup(
     window_query: Single<&Window, With<PrimaryWindow>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     let mut rng = rand::rng();
     commands.spawn(Camera2d);
@@ -72,37 +76,18 @@ fn setup(
         let x: f32 = (rng.random::<f32>() - 0.5) * 2.0 * width;
         let y: f32 = (rng.random::<f32>() - 0.5) * 2.0 * height;
 
-        commands.spawn((
-            Mesh2d(meshes.add(Circle::new(get_radius(&species)))),
-            MeshMaterial2d(materials.add(fauna::get_color(&species))),
-            Transform::from_xyz(
-                x,
-                y,
-                0.0,
-            ),
-            Plankton,
-            Eatable,
-            species,
-            Position(Vec2::new(x, y)),
-            OldPosition(Vec2::new(x, y)),
-            Velocity(random_vec2(5.0, &mut rng)),
-        ));
     }
+    let copepod_handle = asset_server.load("copepod.png");
     // Spawn the player
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(PLAYER_RADIUS))),
-        MeshMaterial2d(materials.add(Color::srgb(0.5, 0.5, 1.0))),
-        Transform::from_xyz(
-            0.0,
-            0.0,
-            0.0,
-        ),
+        Sprite::from_image(copepod_handle),
+        Transform::from_xyz(0.0, 0.0, 2.5),
         Plankton,
         Player,
         Predator,
         Mass(10.0),
-        Position::default(),
-        OldPosition::default(),
+        MovementState{position: Vec2::ZERO, rotation: Quat::default()},
+        OldMovementState{position: Vec2::ZERO, rotation: Quat::default()},
         Velocity::default(),
         Acceleration::default(),
         AccumulatedInput::default(),
@@ -130,9 +115,13 @@ fn update_velocities(
 fn accumulate_input(
     time: Res<Time>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    player: Single<(&mut AccumulatedInput, &mut Velocity, &mut SwimTimer)>,
+    player: Single<(
+        &mut AccumulatedInput,
+        &mut Velocity,
+        &mut MovementState,
+        &mut SwimTimer)>,
 ) {
-    let (mut input, mut velocity, mut swim_timer) = player.into_inner();
+    let (mut input, mut velocity, mut state, mut swim_timer) = player.into_inner();
 
     swim_timer.0.tick(time.delta());
 
@@ -152,7 +141,12 @@ fn accumulate_input(
             input.movement.x += 1.0;
         }
 
-        velocity.0 += 150.0 * input.movement.normalize_or_zero();
+        if input.movement != Vec2::ZERO {
+
+            state.rotation = Quat::from_rotation_arc(Vec3::Y, input.movement.normalize_or_zero().extend(0.0));
+
+            velocity.0 += 150.0 * input.movement.normalize_or_zero();
+        }
 
         swim_timer.reset();
     }
@@ -160,12 +154,12 @@ fn accumulate_input(
 
 fn update_positions(
     fixed_time: Res<Time<Fixed>>,
-    mut query: Query<(&mut Position, &mut OldPosition, &Velocity)>
+    mut query: Query<(&mut MovementState, &mut OldMovementState, &Velocity)>
 ) {
-    for (mut position, mut old_position, velocity) in query.iter_mut() {
-        old_position.0 = position.0;
-        position.x += velocity.0.x * fixed_time.delta_secs();
-        position.y += velocity.0.y * fixed_time.delta_secs();
+    for (mut state, mut old_state, velocity) in query.iter_mut() {
+        old_state.position = state.position;
+        state.position.x += velocity.0.x * fixed_time.delta_secs();
+        state.position.y += velocity.0.y * fixed_time.delta_secs();
     }
 }
 
@@ -215,24 +209,31 @@ fn update_transforms(
     fixed_time: Res<Time<Fixed>>,
     mut query: Query<(
         &mut Transform,
-        &Position,
-        &OldPosition,
+        &MovementState,
+        &OldMovementState,
     )>,
 ) {
-    for (mut transform, pos, old_pos) in query.iter_mut() {
-        let prev = old_pos.0;
-        let current = pos.0;
-        // Fraction of time-step between fixed time-step updates
+    for (mut transform, state, old_state) in query.iter_mut() {
         let delta = fixed_time.overstep_fraction();
         // Linear interpolate between old and current positions
-        let translation = prev.lerp(current, delta); 
-        transform.translation = Vec3::new(translation.x, translation.y, 0.0);
+        let translation = old_state.position.lerp(state.position, delta); 
+        let z_level = transform.translation.z;
+        transform.translation = translation.extend(z_level);
+
+        // Update rotation instantly
+        transform.rotation = state.rotation;
+    }
+}
+
+fn print_player_pos(query: Query<&Transform, With<Player>>){
+    for transform in query.iter() {
+        println!("{}", transform.rotation);
     }
 }
 
 fn update_camera(
     mut camera: Single<&mut Transform, (With<Camera2d>, Without<Player>)>,
-    player: Single<&Transform, (With<Player>, Without<Camera2d>)>,
+    player: Single<&Transform, With<Player>>,
     time: Res<Time>,
 ) {
     let Vec3 { x, y, .. } = player.translation;
@@ -261,32 +262,36 @@ fn random_motion(
 
 fn spawn_new_plankton(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
     new_tiles_query: Query<(Entity, &WorldTile), Without<ActiveTile>>,
 ) {
     let mut rng = rand::rng();
+
+    // Sprite handles
+    let star_handle = asset_server.load("star_diatom.png");
+    let circle_handle = asset_server.load("circle_diatom.png");
+    let rod_handle = asset_server.load("rod_diatom.png");
+    let handles = [star_handle, circle_handle, rod_handle];
+
     for (entity, new_tile) in new_tiles_query.iter() {
         let tile_centre = lattice_to_pos(new_tile.pos());
         for _ in 0..20 {
-            let species = fauna::sample_species(&mut rng);
 
+            let species_handle = handles.choose(&mut rng).unwrap();
             let x: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.x; 
             let y: f32 = (rng.random::<f32>() - 0.5) * TILE_WIDTH + tile_centre.y;
+            let theta: f32 = rng.random::<f32>() * 2.0 * PI;
+            let rotation = Quat::from_rotation_z(theta);
 
             commands.spawn((
-                Mesh2d(meshes.add(Circle::new(get_radius(&species)))),
-                MeshMaterial2d(materials.add(fauna::get_color(&species))),
-                Transform::from_xyz(
-                    x,
-                    y,
-                    0.0,
-                ),
+                Sprite::from_image(species_handle.clone()),
+                Transform::from_xyz(x, y, 0.0)
+                .with_rotation(rotation)
+                .with_scale(Vec2::splat(0.5).extend(0.0)),
                 Plankton,
                 Eatable,
-                species,
-                Position(Vec2::new(x, y)),
-                OldPosition(Vec2::new(x, y)),
+                MovementState{position: Vec2::new(x, y), rotation},
+                OldMovementState{position: Vec2::new(x, y), rotation},
                 Velocity(random_vec2(5.0, &mut rng)),
             ));
         }
