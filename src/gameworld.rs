@@ -1,6 +1,6 @@
 use bevy::{prelude::*};
 
-const RENDER_DISTANCE: u32 = 20;
+const RENDER_DISTANCE: u32 = 15;
 
 pub const TILE_WIDTH: f32 = 250.0;
 
@@ -10,31 +10,14 @@ impl Plugin for GameWorldPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(CentreTile(IVec2::ZERO))
             .add_systems(Startup, spawn_starting_tiles)
-            .add_systems(Update, cull_tiles)
-            .add_systems(Update, spawn_new_tiles);
+            .add_systems(FixedUpdate, cull_tiles)
+            .add_systems(FixedUpdate, cull_entities)
+            .add_systems(FixedUpdate, spawn_new_tiles);
     }
 }
 
 #[derive(Component)]
 pub struct Player;
-
-#[derive(Debug, Component, Clone, Copy, Default)]
-pub struct MovementState{
-    pub position: Vec2,
-    pub rotation: Quat,
-}
-
-#[derive(Debug, Component, Clone, Copy, Default)]
-pub struct OldMovementState{
-    pub position: Vec2,
-    pub rotation: Quat,
-}
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-pub struct Velocity(pub Vec2);
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default, Deref, DerefMut)]
-pub struct Acceleration(pub Vec2);
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Eq, Default, Deref, DerefMut)]
 pub struct WorldTile(IVec2);
@@ -62,9 +45,6 @@ impl Tile for WorldTile {
 
 #[derive(Component)]
 pub struct ActiveTile;
-
-//#[derive(Resource)]
-//struct TileMap(HashMap<WorldTile, Entity>);
 
 #[derive(Debug, Resource, Clone, Copy, PartialEq, Eq, Default, Deref, DerefMut)]
 pub struct CentreTile(IVec2);
@@ -130,10 +110,10 @@ pub fn pos_to_lattice(
 fn spawn_new_tiles(
     mut commands: Commands,
     mut centre_tile: ResMut<CentreTile>,
-    state_query: Single<&MovementState, With<Player>>,
+    transform: Single<&Transform, With<Player>>,
 ) {
-    let current_state = state_query.into_inner();
-    let current_lattice_pos = pos_to_lattice(current_state.position);
+    let current_pos = transform.into_inner().translation;
+    let current_lattice_pos = pos_to_lattice(Vec2::new(current_pos.x, current_pos.y));
 
     if current_lattice_pos != centre_tile.0 {
         // Dumb way: Create a Vec of positions for new and old tiles, and find the
@@ -160,14 +140,28 @@ fn spawn_new_tiles(
 
 fn cull_tiles(
     mut commands: Commands,
-    state_query: Single<&MovementState, With<Player>>,
+    transform: Single<&Transform, With<Player>>,
     tile_query: Query<(Entity, &WorldTile)>,
 ) {
-    let current_state = state_query.into_inner();
-    let current_tile = pos_to_lattice(current_state.position);
+    let current_pos = transform.into_inner().translation;
+    let current_tile = pos_to_lattice(Vec2::new(current_pos.x, current_pos.y));
 
     for (entity, world_tile) in tile_query.iter() {
         if world_tile.distance(current_tile) > RENDER_DISTANCE {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn cull_entities(
+    mut commands: Commands,
+    player_transform: Single<&Transform, With<Player>>,
+    entity_query: Query<(Entity, &Transform), Without<Player>>,
+) {
+    let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
+    for (entity, transform) in entity_query.iter() {
+        let entity_pos = Vec2::new(transform.translation.x, transform.translation.y);
+        if entity_pos.distance(player_pos) > 1.2 * TILE_WIDTH * (RENDER_DISTANCE as f32) {
             commands.entity(entity).despawn();
         }
     }
